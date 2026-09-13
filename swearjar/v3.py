@@ -4,7 +4,7 @@ from functools import lru_cache
 from typing import List, Optional, Sequence, Tuple
 
 import discord
-from redbot.core import app_commands
+from discord import app_commands
 
 from .swearjar import SwearJar as LegacySwearJar
 
