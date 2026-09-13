@@ -1,6 +1,7 @@
 from redbot.core import commands
 
 from . import legacy_commands
+from .topall import SwearJarTopAll
 from .v4 import SwearJar
 
 
@@ -20,6 +21,7 @@ def _admin(command):
 async def setup(bot):
     cog = SwearJar(bot)
     await bot.add_cog(cog)
+    await bot.add_cog(SwearJarTopAll(bot, cog))
 
     # legacy_commands costruisce i comandi a runtime. I decorator di Red devono
     # essere applicati direttamente al Command; non espongono una `.predicate`.
