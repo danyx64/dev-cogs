@@ -1,5 +1,4 @@
 import math
-from typing import List, Tuple
 
 import discord
 from discord import app_commands
@@ -8,77 +7,7 @@ from redbot.core.bot import Red
 
 
 PAGE_SIZE = 20
-
-
-class FullLeaderboardView(discord.ui.View):
-    """Paginazione interattiva della classifica completa SwearJar."""
-
-    def __init__(
-        self,
-        author_id: int,
-        ranking: List[Tuple[int, int]],
-        total: int,
-    ):
-        super().__init__(timeout=180)
-        self.author_id = author_id
-        self.ranking = ranking
-        self.total = total
-        self.page = 0
-        self.total_pages = max(1, math.ceil(len(ranking) / PAGE_SIZE))
-
-    def build_embed(self) -> discord.Embed:
-        start = self.page * PAGE_SIZE
-        end = start + PAGE_SIZE
-        page_entries = self.ranking[start:end]
-
-        medals = ["🥇", "🥈", "🥉"]
-        lines = []
-        for offset, (uid, count) in enumerate(page_entries):
-            position = start + offset + 1
-            prefix = medals[position - 1] if position <= 3 else f"**{position}.**"
-            lines.append(f"{prefix} <@{uid}> — **{count}**")
-
-        embed = discord.Embed(
-            title="🏆 Classifica completa Swear Jar",
-            description="\n".join(lines) if lines else "La leaderboard e ancora vuota.",
-            colour=discord.Colour.gold(),
-        )
-        embed.add_field(
-            name="Totale server",
-            value=f"**{self.total}** bestemmie rilevate",
-            inline=True,
-        )
-        embed.add_field(
-            name="Membri in classifica",
-            value=f"**{len(self.ranking)}**",
-            inline=True,
-        )
-        embed.set_footer(text=f"Pagina {self.page + 1}/{self.total_pages} • {PAGE_SIZE} utenti per pagina")
-
-        self.previous.disabled = self.page <= 0
-        self.next.disabled = self.page >= self.total_pages - 1
-        return embed
-
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user.id == self.author_id:
-            return True
-        await interaction.response.send_message(
-            "Solo chi ha aperto la classifica puo cambiare pagina.",
-            ephemeral=True,
-        )
-        return False
-
-    @discord.ui.button(label="◀", style=discord.ButtonStyle.secondary)
-    async def previous(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if self.page > 0:
-            self.page -= 1
-        await interaction.response.edit_message(embed=self.build_embed(), view=self)
-
-    @discord.ui.button(label="▶", style=discord.ButtonStyle.secondary)
-    async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if self.page < self.total_pages - 1:
-            self.page += 1
-        await interaction.response.edit_message(embed=self.build_embed(), view=self)
+EMBEDS_PER_MESSAGE = 10
 
 
 class SwearJarTopAll(commands.Cog):
@@ -120,14 +49,48 @@ class SwearJarTopAll(commands.Cog):
             )
 
         total = sum(count for _, count in ranking)
-        view = FullLeaderboardView(interaction.user.id, ranking, total)
+        total_pages = math.ceil(len(ranking) / PAGE_SIZE)
+        embeds = []
+        medals = ["🥇", "🥈", "🥉"]
 
-        await interaction.followup.send(
-            embed=view.build_embed(),
-            view=view,
-            allowed_mentions=discord.AllowedMentions(
-                users=True,
-                roles=False,
-                everyone=False,
-            ),
+        for page_index in range(total_pages):
+            start = page_index * PAGE_SIZE
+            page_entries = ranking[start:start + PAGE_SIZE]
+            lines = []
+
+            for offset, (uid, count) in enumerate(page_entries):
+                position = start + offset + 1
+                prefix = medals[position - 1] if position <= 3 else f"**{position}.**"
+                lines.append(f"{prefix} <@{uid}> — **{count}**")
+
+            embed = discord.Embed(
+                title="🏆 Classifica completa Swear Jar",
+                description="\n".join(lines),
+                colour=discord.Colour.gold(),
+            )
+            embed.add_field(
+                name="Totale server",
+                value=f"**{total}** bestemmie rilevate",
+                inline=True,
+            )
+            embed.add_field(
+                name="Membri in classifica",
+                value=f"**{len(ranking)}**",
+                inline=True,
+            )
+            embed.set_footer(
+                text=f"Pagina {page_index + 1}/{total_pages} • {PAGE_SIZE} utenti per pagina"
+            )
+            embeds.append(embed)
+
+        allowed_mentions = discord.AllowedMentions(
+            users=True,
+            roles=False,
+            everyone=False,
         )
+
+        for index in range(0, len(embeds), EMBEDS_PER_MESSAGE):
+            await interaction.followup.send(
+                embeds=embeds[index:index + EMBEDS_PER_MESSAGE],
+                allowed_mentions=allowed_mentions,
+            )
