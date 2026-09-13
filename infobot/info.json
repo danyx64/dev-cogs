@@ -1,0 +1,12 @@
+{
+  "author": ["danyx64"],
+  "description": "Owner-only bot installation info: real guild list and observed user installs.",
+  "install_msg": "Load with `[p]load infobot`, then use `[p]infobot`. User-install identities are learned from interactions observed after the cog is loaded.",
+  "short": "Bot guild and user-install info",
+  "requirements": [],
+  "tags": ["owner", "info", "guilds", "installations"],
+  "min_bot_version": "3.5.0",
+  "hidden": true,
+  "disabled": false,
+  "type": "COG"
+}
