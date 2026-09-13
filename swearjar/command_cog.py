@@ -85,6 +85,7 @@ class SwearJarCommands(commands.Cog):
             value=(
                 f"`{p}swear status`\n"
                 f"`{p}swear reset <utente|ID>`\n"
+                f"`{p}swear resetleft` - azzera solo chi non e piu nel server\n"
                 f"`{p}swear set <utente|ID> <numero>`\n"
                 f"`{p}swear enable` / `{p}swear disable`"
             ),
@@ -249,6 +250,76 @@ class SwearJarCommands(commands.Cog):
             f"Statistiche di {label} azzerate: **{previous} -> 0**. Totale server: **{total}**.",
             allowed_mentions=self._mentions(),
         )
+
+    @swear.command(name="resetleft", aliases=["resetgone", "cleanleft", "prune"])
+    @commands.admin_or_permissions(manage_guild=True)
+    async def swear_resetleft(self, ctx: commands.Context):
+        """Azzera i count degli utenti confermati non piu presenti nel server."""
+        all_members = await self.swearjar.config.all_members(ctx.guild)
+        candidates = [
+            (int(uid), int(data.get("count", 0) or 0))
+            for uid, data in all_members.items()
+            if int(data.get("count", 0) or 0) > 0
+        ]
+        if not candidates:
+            return await ctx.send("Non ci sono conteggi da controllare.")
+
+        status = await ctx.send(
+            f"Verifico con Discord **{len(candidates)}** utenti con count > 0. "
+            "Azzero solo gli ID confermati come non piu presenti..."
+        )
+        reset_ids = []
+        skipped_ids = []
+        still_inside = 0
+        removed_count = 0
+
+        for index, (uid, _) in enumerate(candidates, 1):
+            try:
+                await ctx.guild.fetch_member(uid)
+            except discord.NotFound:
+                group = self.swearjar.config.member_from_ids(ctx.guild.id, uid)
+                current = int(await group.count() or 0)
+                if current > 0:
+                    await group.count.set(0)
+                    reset_ids.append(uid)
+                    removed_count += current
+            except (discord.Forbidden, discord.HTTPException):
+                # Se Discord non ci permette di verificare con certezza, non tocchiamo nulla.
+                skipped_ids.append(uid)
+            else:
+                still_inside += 1
+
+            if index % 25 == 0 and index < len(candidates):
+                await status.edit(
+                    content=(
+                        f"Verifica in corso: **{index}/{len(candidates)}**. "
+                        f"Confermati nel server: **{still_inside}** | "
+                        f"da azzerare: **{len(reset_ids)}** | "
+                        f"non verificabili: **{len(skipped_ids)}**"
+                    )
+                )
+
+        server_total = await self.swearjar._server_total(ctx.guild)
+        summary = (
+            "Pulizia completata.\n"
+            f"- Utenti controllati: **{len(candidates)}**\n"
+            f"- Ancora nel server: **{still_inside}**\n"
+            f"- Utenti usciti azzerati: **{len(reset_ids)}**\n"
+            f"- Bestemmie rimosse dal totale: **{removed_count}**\n"
+            f"- Non verificabili (lasciati intatti): **{len(skipped_ids)}**\n"
+            f"- Nuovo totale server: **{server_total}**"
+        )
+        if reset_ids:
+            preview = ", ".join(f"`{uid}`" for uid in reset_ids[:15])
+            summary += f"\n\nID azzerati: {preview}"
+            if len(reset_ids) > 15:
+                summary += f" e altri **{len(reset_ids) - 15}**."
+        if skipped_ids:
+            summary += (
+                "\n\nGli ID non verificabili **non sono stati modificati**, "
+                "cosi non rischiamo di azzerare qualcuno ancora presente."
+            )
+        await status.edit(content=summary[:2000])
 
     @swear.command(name="set", aliases=["fix"])
     @commands.admin_or_permissions(manage_guild=True)
