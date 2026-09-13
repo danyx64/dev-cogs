@@ -1,10 +1,10 @@
 {
   "author": ["danyx64"],
-  "description": "Swear Jar italiano per Red-DiscordBot: rilevamento anti-elusione configurabile, conteggi per utente e leaderboard slash /top con totale server.",
+  "description": "Swear Jar italiano per Red-DiscordBot: rilevamento anti-elusione, conteggi correggibili, whitelist/blacklist separate, bestemmie manuali, messaggi con placeholder e leaderboard slash /top.",
   "short": "Swear Jar italiano configurabile",
-  "install_msg": "SwearJar 3.0: dopo l'aggiornamento esegui `[p]reload swearjar`, poi `[p]slash enable top` e `[p]slash sync` per pubblicare `/top`.",
+  "install_msg": "SwearJar 4.0: esegui `[p]reload swearjar`, poi `[p]slash enable top` e `[p]slash sync` se `/top` non e' gia' pubblicato. Usa `[p]swearjar` per la nuova guida comandi.",
   "requirements": [],
   "tags": ["swearjar", "moderazione", "italiano", "leaderboard", "chat", "slash"],
   "type": "COG",
-  "end_user_data_statement": "Questo cog salva localmente, per server, il conteggio delle occorrenze associate agli ID Discord degli utenti e la configurazione delle parole e dei canali."
+  "end_user_data_statement": "Questo cog salva localmente, per server, il conteggio associato agli ID Discord, le bestemmie manuali, la configurazione dei canali e il messaggio di risposta."
 }
