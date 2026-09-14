@@ -1,0 +1,41 @@
+# QuestTracker embed template.
+# Modifica questo file per cambiare il messaggio inviato dal bot.
+# Le sezioni supportate sono: TITLE, DESCRIPTION, FOOTER, COLOR, URL, IMAGE, THUMBNAIL.
+# Usa .quest placeholders per vedere tutte le variabili disponibili.
+
+[TITLE]
+{test_prefix}Nuova Quest - {title}
+
+[DESCRIPTION]
+{mention}
+
+📋 **Quest Info**
+**Titolo:** {title}
+**Durata:** {start_date} - {end_date}
+**Piattaforme:** {platforms}
+**Gioco/App:** {game} (`{application_id}`)
+
+✅ **Obiettivi**
+{tasks}
+
+🎁 **Rewards**
+**Tipo:** {reward_type}
+**Nome:** {reward_name}
+{orb_line}
+{sku_line}
+{video_line}
+
+[FOOTER]
+Quest ID: {quest_id}
+
+[COLOR]
+#5865F2
+
+[URL]
+{cta_url}
+
+[IMAGE]
+{hero_url}
+
+[THUMBNAIL]
+{reward_image_url}
