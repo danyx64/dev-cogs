@@ -1,0 +1,17 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Cog-Creators/Red-DiscordBot/V3/develop/schema/red_cog.schema.json",
+  "name": "invitetracker",
+  "author": ["Taako", "danyx64 - adattamento italiano"],
+  "version": "1.2.1-it.1",
+  "description": "Versione italiana di InviteTracker compatibile con TaakoOfficial/TaakosCogs. Traccia utilizzo inviti, sorgenti di ingresso, join fake, uscite, classifiche, CSV e gestione Dashboard mantenendo lo stesso Config identifier e le stesse chiavi persistenti.",
+  "install_msg": "InviteTracker italiano installato. Mantiene la Config del cog originale TaakoOfficial/TaakosCogs. Usa `[p]invitetracker status` per controllare le impostazioni recuperate oppure `[p]invitetracker setup #canale` per configurarlo.",
+  "short": "Tracciamento inviti, join, fake, uscite e classifiche in italiano.",
+  "tags": ["invites", "tracking", "joins", "leaderboard", "dashboard", "utility", "moderation", "italiano"],
+  "requirements": [],
+  "min_bot_version": "3.5.0",
+  "min_python_version": [3, 10, 0],
+  "hidden": false,
+  "disabled": false,
+  "type": "COG",
+  "end_user_data_statement": "Questo cog salva per server configurazione del tracciamento inviti, metadati degli inviti in cache, statistiche degli invitatori, record della sorgente di ingresso dei membri, ID Discord, codici invito, timestamp, flag join fake e conteggio degli ingressi sconosciuti. I CSV vengono generati solo su richiesta e inviati direttamente su Discord."
+}
