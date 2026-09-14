@@ -1,0 +1,353 @@
+name: Finalize Tickets Italian
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/finalize_tickets_it.yml
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install localization tooling
+        run: python -m pip install --disable-pip-version-check polib requests
+
+      - name: Translate all Tickets catalogs to Italian
+        shell: bash
+        run: |
+          python <<'PY'
+          from __future__ import annotations
+
+          import re
+          import time
+          from pathlib import Path
+          from urllib.parse import urlencode
+
+          import polib
+          import requests
+
+          CATALOGS = [
+              Path("tickets/locales/messages.pot"),
+              Path("tickets/commands/locales/messages.pot"),
+              Path("tickets/common/locales/messages.pot"),
+          ]
+
+          # Keep Discord/Red terminology natural in Italian instead of literal translations.
+          POST = [
+              (r"\bbiglietti\b", "ticket"),
+              (r"\bbiglietto\b", "ticket"),
+              (r"\bBiglietti\b", "Ticket"),
+              (r"\bBiglietto\b", "Ticket"),
+              (r"\bgilda\b", "server"),
+              (r"\bGilda\b", "Server"),
+              (r"\bgilde\b", "server"),
+              (r"\bGilde\b", "Server"),
+              (r"\bfili\b", "thread"),
+              (r"\bfilo\b", "thread"),
+              (r"\bFili\b", "Thread"),
+              (r"\bFilo\b", "Thread"),
+          ]
+
+          MANUAL = {
+              "Ticket Setup Guide": "Guida alla configurazione dei ticket",
+              "Base support ticket settings": "Impostazioni di base del sistema ticket",
+              "Step 1": "Passaggio 1",
+              "Step 2": "Passaggio 2",
+              "Step 3": "Passaggio 3",
+              "Button Text": "Testo del pulsante",
+              "Button Color": "Colore del pulsante",
+              "Button Emoji": "Emoji del pulsante",
+              "Thread Tickets": "Ticket in thread",
+              "Ticket Messages": "Messaggi del ticket",
+              "Remove/View Ticket Messages": "Rimuovi/Visualizza messaggi del ticket",
+              "Ticket Channel Name": "Nome del canale ticket",
+              "Log Channel": "Canale log",
+              "Ticket System Suspended": "Sistema ticket sospeso",
+              "Outside Working Hours": "Fuori dall'orario di supporto",
+              "You are not allowed to interact with this button.": "Non puoi interagire con questo pulsante.",
+              "N/A": "N/D",
+              "All Time": "Da sempre",
+              "Since": "Da",
+              "< 1 minute": "< 1 minuto",
+              "less than a minute": "meno di un minuto",
+              "{} minute": "{} minuto",
+              "{} minutes": "{} minuti",
+              "{} hour": "{} ora",
+              "{} hours": "{} ore",
+              "{} day": "{} giorno",
+              "{} days": "{} giorni",
+              "Open a Ticket": "Apri un ticket",
+              "Close Ticket": "Chiudi ticket",
+              "Claim Ticket": "Prendi in carico",
+              "Join Ticket": "Entra nel ticket",
+              "Yes": "Sì",
+              "No": "No",
+              "Cancel": "Annulla",
+              "Confirm": "Conferma",
+              "Close": "Chiudi",
+              "Back": "Indietro",
+              "Next": "Avanti",
+              "Previous": "Precedente",
+          }
+
+          # Syntax and placeholders that must remain byte-for-byte stable.
+          TOKEN_RE = re.compile(
+              r"("  # capture protected token
+              r"```.*?```|`[^`]*`|"
+              r"https?://[^\s]+|"
+              r"<t:[^>]+>|<@!?\d+>|<@&\d+>|<#\d+>|"
+              r"\{[^{}]*\}|"
+              r"\[[^\]\n]+\]|"
+              r"<[^<>\n]+>"
+              r")",
+              re.DOTALL,
+          )
+
+          session = requests.Session()
+          cache: dict[str, str] = {}
+
+          def google_translate(text: str) -> str:
+              if not text or not re.search(r"[A-Za-z]", text):
+                  return text
+              if text in cache:
+                  return cache[text]
+              params = {
+                  "client": "gtx",
+                  "sl": "en",
+                  "tl": "it",
+                  "dt": "t",
+                  "q": text,
+              }
+              url = "https://translate.googleapis.com/translate_a/single?" + urlencode(params)
+              last = None
+              for attempt in range(7):
+                  try:
+                      response = session.get(url, timeout=30)
+                      if response.status_code == 429:
+                          time.sleep(2 + attempt * 3)
+                          continue
+                      response.raise_for_status()
+                      data = response.json()
+                      translated = "".join(part[0] for part in data[0] if part and part[0] is not None)
+                      cache[text] = translated
+                      return translated
+                  except Exception as exc:
+                      last = exc
+                      time.sleep(1 + attempt * 2)
+              raise RuntimeError(f"Translation failed after retries: {text!r}: {last}")
+
+          def translate_preserving_tokens(text: str) -> str:
+              if text in MANUAL:
+                  return MANUAL[text]
+              if not re.search(r"[A-Za-z]", text):
+                  return text
+
+              parts = TOKEN_RE.split(text)
+              protected = [p for i, p in enumerate(parts) if i % 2 == 1]
+
+              # First try translating the whole string with inert markers for better grammar.
+              marked = text
+              marker_map = {}
+              for i, token in enumerate(protected):
+                  marker = f"ZXQPH{i}QXZ"
+                  marker_map[marker] = token
+                  marked = marked.replace(token, marker, 1)
+              translated = google_translate(marked)
+              if all(marker in translated for marker in marker_map):
+                  for marker, token in marker_map.items():
+                      translated = translated.replace(marker, token)
+              else:
+                  # Guaranteed-safe fallback: translate only unprotected segments.
+                  out = []
+                  for i, part in enumerate(parts):
+                      out.append(part if i % 2 else google_translate(part))
+                  translated = "".join(out)
+
+              for pattern, replacement in POST:
+                  translated = re.sub(pattern, replacement, translated)
+              return translated
+
+          def brace_tokens(text: str) -> list[str]:
+              return sorted(re.findall(r"\{[^{}]*\}", text))
+
+          def angle_tokens(text: str) -> list[str]:
+              return sorted(re.findall(r"<t:[^>]+>|<@!?\d+>|<@&\d+>|<#\d+>|<[^<>\n]+>", text))
+
+          totals = []
+          for pot_path in CATALOGS:
+              pot = polib.pofile(str(pot_path), encoding="utf-8")
+              out_path = pot_path.with_name("it-IT.po")
+              po = polib.POFile()
+              po.metadata = dict(pot.metadata)
+              po.metadata.update(
+                  {
+                      "Project-Id-Version": "vrt-cogs Tickets Italian",
+                      "Language": "it_IT",
+                      "Language-Team": "Italian",
+                      "Last-Translator": "danyx64 / Italian localization",
+                      "Content-Type": "text/plain; charset=UTF-8",
+                      "Content-Transfer-Encoding": "8bit",
+                      "Plural-Forms": "nplurals=2; plural=(n != 1);",
+                  }
+              )
+
+              translated_count = 0
+              unchanged_words = []
+              for entry in pot:
+                  new = polib.POEntry(
+                      msgid=entry.msgid,
+                      msgid_plural=entry.msgid_plural,
+                      occurrences=entry.occurrences,
+                      comment=entry.comment,
+                      tcomment=entry.tcomment,
+                      flags=list(entry.flags),
+                      context=entry.context,
+                  )
+                  if entry.obsolete:
+                      new.obsolete = True
+                      po.append(new)
+                      continue
+
+                  if entry.msgid_plural:
+                      one = translate_preserving_tokens(entry.msgid)
+                      many = translate_preserving_tokens(entry.msgid_plural)
+                      new.msgstr_plural[0] = one
+                      new.msgstr_plural[1] = many
+                      check_values = [(entry.msgid, one), (entry.msgid_plural, many)]
+                  else:
+                      new.msgstr = translate_preserving_tokens(entry.msgid)
+                      check_values = [(entry.msgid, new.msgstr)]
+
+                  for src, dst in check_values:
+                      if brace_tokens(src) != brace_tokens(dst):
+                          raise RuntimeError(f"Brace placeholder mismatch in {pot_path}: {src!r} -> {dst!r}")
+                      if angle_tokens(src) != angle_tokens(dst):
+                          raise RuntimeError(f"Angle/token mismatch in {pot_path}: {src!r} -> {dst!r}")
+                      if src and not dst:
+                          raise RuntimeError(f"Empty Italian translation in {pot_path}: {src!r}")
+                      if dst != src:
+                          translated_count += 1
+                      elif re.search(r"\b(the|ticket|support|channel|message|user|staff|button|working|hours|close|open|remove|add|set|view|server|role|panel)\b", src, re.I):
+                          unchanged_words.append(src[:120])
+
+                  po.append(new)
+
+              po.save(str(out_path))
+              # Compile as an additional syntax/format sanity check.
+              po.save_as_mofile(str(out_path.with_suffix(".mo")))
+              out_path.with_suffix(".mo").unlink()
+              totals.append((str(out_path), len(po), translated_count, len(unchanged_words)))
+
+          for path, total, changed, unchanged in totals:
+              print(f"{path}: {changed}/{total} entries translated; {unchanged} English-looking entries left unchanged")
+          PY
+
+      - name: Apply safe Italian UI text outside gettext
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path("tickets/tickets.py")
+          text = path.read_text(encoding="utf-8")
+          text = text.replace(
+              'info = f"{helpcmd}\\nCog Version: {self.__version__}\\nAuthor: {self.__author__}\\n"',
+              'info = f"{helpcmd}\\nVersione Cog: {self.__version__}\\nAutore: {self.__author__}\\n"',
+          )
+          path.write_text(text, encoding="utf-8")
+
+          path = Path("tickets/commands/analytics.py")
+          text = path.read_text(encoding="utf-8")
+          for en, it in {
+              '0: "Monday"': '0: "Lunedì"',
+              '1: "Tuesday"': '1: "Martedì"',
+              '2: "Wednesday"': '2: "Mercoledì"',
+              '3: "Thursday"': '3: "Giovedì"',
+              '4: "Friday"': '4: "Venerdì"',
+              '5: "Saturday"': '5: "Sabato"',
+              '6: "Sunday"': '6: "Domenica"',
+          }.items():
+              text = text.replace(en, it)
+          path.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Validate exact configuration compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m compileall -q tickets
+
+          python <<'PY'
+          from pathlib import Path
+          import re
+
+          tickets = Path("tickets/tickets.py").read_text(encoding="utf-8")
+          assert "class Tickets(" in tickets
+          assert "Config.get_conf(self, 117117, force_registration=True)" in tickets
+          assert "self.config.register_global(db={})" in tickets
+          assert '__version__ = "3.5.1"' in tickets
+
+          init = Path("tickets/__init__.py").read_text(encoding="utf-8")
+          assert "from .tickets import Tickets" in init
+          assert "cog = Tickets(bot)" in init
+
+          models = Path("tickets/common/models.py").read_text(encoding="utf-8")
+          required = [
+              "class ModalField(Base):",
+              "class TicketMessage(Base):",
+              "class OpenedTicket(Base):",
+              "class Panel(Base):",
+              "class GuildSettings(Base):",
+              "class DB(Base):",
+              "async def run_migrations(",
+              "async def migrate_from_old_config(",
+          ]
+          for needle in required:
+              assert needle in models, needle
+
+          for rel in [
+              "tickets/locales/it-IT.po",
+              "tickets/commands/locales/it-IT.po",
+              "tickets/common/locales/it-IT.po",
+          ]:
+              text = Path(rel).read_text(encoding="utf-8")
+              assert '"Language: it_IT\\n"' in text
+              assert "msgstr \"\"\n\n" not in text.replace('msgid ""\nmsgstr ""', 'HEADER')
+          PY
+
+          # The DB schema/migrations are deliberately byte-for-byte identical to the source version cloned.
+          curl -fsSL "https://raw.githubusercontent.com/vertyco/vrt-cogs/f905b5a1d28cebeb7b165848a46b9114b85884ad/tickets/common/models.py" -o /tmp/upstream_models.py
+          cmp /tmp/upstream_models.py tickets/common/models.py
+          git diff --check
+
+      - name: Remove one-time helper workflows and commit final result
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f \
+            .github/workflows/import_tickets.yml \
+            .github/workflows/translate_tickets_it.yml \
+            .github/workflows/refine_tickets_it.yml \
+            .github/workflows/finalize_tickets_it.yml
+
+          git config user.name "DanyX64"
+          git config user.email "124602162+danyx64@users.noreply.github.com"
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "Finalize Italian Tickets localization"
+            git push
+          fi
