@@ -1,6 +1,7 @@
 # QuestTracker embed template.
 # Modifica questo file per cambiare il messaggio inviato dal bot.
 # Le sezioni supportate sono: TITLE, DESCRIPTION, FOOTER, COLOR, URL, IMAGE, THUMBNAIL.
+# Il footer è disattivato dal cog per mantenere l'embed pulito.
 # Usa .quest placeholders per vedere tutte le variabili disponibili.
 
 [TITLE]
@@ -26,7 +27,6 @@
 {video_line}
 
 [FOOTER]
-Quest ID: {quest_id}
 
 [COLOR]
 #5865F2
