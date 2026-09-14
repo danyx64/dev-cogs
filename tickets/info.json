@@ -2,13 +2,17 @@
   "author": [
     "Vertyco"
   ],
-  "description": "Multi-Panel Discord support ticket system with buttons!",
+  "description": "Sistema avanzato di ticket di supporto Discord multi-pannello con pulsanti.",
   "disabled": false,
   "end_user_data_statement": "This cog stores ticket data and analytics about user support interactions.",
   "hidden": false,
-  "install_msg": "Thank you for installing Tickets! type `[p]tickets setuphelp` to get started!",
+  "install_msg": "Grazie per aver installato Tickets! Usa `[p]tickets setuphelp` per iniziare. La traduzione italiana usa la locale `it-IT` di Red.",
   "min_bot_version": "3.5.0",
-  "min_python_version": [3, 10, 0],
+  "min_python_version": [
+    3,
+    10,
+    0
+  ],
   "permissions": [
     "read_messages",
     "send_messages",
@@ -28,7 +32,7 @@
     "pydantic>=2.11,<2.12",
     "orjson"
   ],
-  "short": "Advanced support ticket system",
+  "short": "Sistema avanzato di ticket di supporto",
   "tags": [
     "utility",
     "tickets",
