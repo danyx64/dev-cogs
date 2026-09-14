@@ -1,10 +1,10 @@
 {
   "author": ["danyx64"],
-  "description": "QuestTracker v4 per Red-DiscordBot: layout fisso nel codice, embed senza footer/timestamp, immagini automatiche e menzione del ruolo inviata come messaggio separato sotto l'embed sia nel test sia nelle notifiche reali.",
+  "description": "QuestTracker v4 per Red-DiscordBot: layout fisso nel codice, embed senza footer/timestamp, immagini automatiche, menzione del ruolo nello stesso messaggio e filtro regionale per mostrare solo Quest disponibili in Italia, rimuovendo le varianti duplicate per altri Paesi.",
   "install_msg": "QuestTracker v4 installato. Usa `[p]quest setup #canale`, `[p]quest ruolo @Ruolo`, `[p]quest ping on`, poi `[p]reload questtracker`. Verifica la versione con `[p]quest version`. Tutti i comandi funzionano anche con `[p]quests`.",
-  "short": "Discord Quest tracker con embed fisso e menzione sotto l'embed.",
+  "short": "Discord Quest tracker italiano con filtro regionale e dedupe.",
   "end_user_data_statement": "Questo cog salva solo configurazione del server, ID di canale/ruolo, impostazioni QuestTracker e identificatori delle Quest gia rilevate. Non memorizza dati personali degli utenti.",
   "min_bot_version": "3.5.0",
   "requirements": [],
-  "tags": ["discord", "quests", "quest", "notifications", "utility", "embed", "roles"]
+  "tags": ["discord", "quests", "quest", "notifications", "utility", "embed", "roles", "italy", "region"]
 }
