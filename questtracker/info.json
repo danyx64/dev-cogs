@@ -1,0 +1,10 @@
+{
+  "author": ["danyx64"],
+  "description": "Tracker italiano delle Discord Quest per Red-DiscordBot. Controlla automaticamente le nuove Quest, pubblica embed con obiettivi e ricompense, supporta la menzione di un ruolo e un messaggio completamente personalizzabile.",
+  "install_msg": "QuestTracker installato. Caricalo e usa `[p]quest setup #canale`. Tutti i comandi funzionano sia con `[p]quest` sia con `[p]quests`.",
+  "short": "Tracker Discord Quest in italiano con notifiche e ruoli.",
+  "end_user_data_statement": "Questo cog salva solo configurazione del server, ID di canale/ruolo e identificatori delle Quest gia rilevate. Non memorizza dati personali degli utenti.",
+  "min_bot_version": "3.5.0",
+  "requirements": [],
+  "tags": ["discord", "quests", "quest", "notifications", "utility"]
+}
