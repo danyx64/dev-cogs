@@ -11,7 +11,6 @@ from redbot.core.bot import Red
 
 PRIMARY_SOURCE = "https://api.discordquest.com/api/quests"
 FALLBACK_SOURCE = "https://raw.githubusercontent.com/aamiaa/discord-api-diff/refs/heads/main/quests.json"
-DEFAULT_TEMPLATE = "🎯 **Nuova Quest Discord disponibile!**\n{mention}"
 DISCORD_SPONSORED_APP_ID = "545364944258990091"
 
 TASK_LABELS = {
@@ -25,8 +24,8 @@ TASK_LABELS = {
     "PLAY_ON_XBOX": "Gioca su Xbox",
     "PLAY_ON_SWITCH": "Gioca su Nintendo Switch",
     "COMPLETE_ACHIEVEMENT": "Completa un obiettivo",
-    "PLAY_ACTIVITY": "Avvia l'attività",
-    "ACHIEVEMENT_IN_ACTIVITY": "Completa un obiettivo nell'attività",
+    "PLAY_ACTIVITY": "Avvia l'attivita",
+    "ACHIEVEMENT_IN_ACTIVITY": "Completa un obiettivo nell'attivita",
 }
 
 PLATFORM_LABELS = {
@@ -41,11 +40,6 @@ PLATFORM_LABELS = {
 }
 
 
-class SafeFormatDict(dict):
-    def __missing__(self, key: str) -> str:
-        return "{" + key + "}"
-
-
 def _parse_iso(value: Optional[str]) -> Optional[datetime]:
     if not value:
         return None
@@ -56,14 +50,15 @@ def _parse_iso(value: Optional[str]) -> Optional[datetime]:
 
 
 def _date_it(value: Optional[str]) -> str:
-    date = _parse_iso(value)
-    return date.strftime("%d/%m/%y") if date else "Sconosciuta"
+    dt = _parse_iso(value)
+    return dt.strftime("%d/%m/%y") if dt else "Sconosciuta"
 
 
 def _cdn_url(quest_id: str, asset: Optional[str]) -> Optional[str]:
     if not asset:
         return None
-    if asset.startswith("http://") or asset.startswith("https://"):
+    asset = str(asset)
+    if asset.startswith(("http://", "https://")):
         return asset
     if asset.startswith("quests/"):
         return f"https://cdn.discordapp.com/{asset}"
@@ -79,23 +74,31 @@ def _quest_config(entry: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     return None
 
 
-def _reward_data(config: Dict[str, Any]) -> Tuple[str, Optional[str], Optional[str]]:
+def _rewards(config: Dict[str, Any]) -> List[Dict[str, Any]]:
     reward_config = config.get("rewards_config") or {}
     rewards = reward_config.get("rewards") or config.get("rewards") or []
+    return [reward for reward in rewards if isinstance(reward, dict)]
+
+
+def _reward_data(config: Dict[str, Any]) -> Tuple[str, str, Optional[int]]:
+    rewards = _rewards(config)
     if not rewards:
-        return "Ricompensa sconosciuta", None, None
+        return "Ricompensa sconosciuta", "", None
 
-    reward = rewards[0] if isinstance(rewards[0], dict) else {}
-    sku = str(reward.get("sku_id")) if reward.get("sku_id") is not None else None
+    reward = rewards[0]
+    sku = str(reward.get("sku_id") or "")
+    orb_quantity = reward.get("orb_quantity")
+    try:
+        orb_quantity = int(orb_quantity) if orb_quantity is not None else None
+    except (TypeError, ValueError):
+        orb_quantity = None
 
-    if reward.get("orb_quantity") is not None:
-        amount = reward.get("orb_quantity")
-        return f"{amount} Orbs", sku, None
+    if orb_quantity is not None:
+        return f"{orb_quantity} Orbs", sku, orb_quantity
 
     messages = reward.get("messages") or {}
     name = messages.get("name") or reward.get("name") or "Ricompensa"
-    asset = reward.get("asset")
-    return str(name), sku, asset
+    return str(name), sku, None
 
 
 def _task_items(config: Dict[str, Any]) -> List[Tuple[str, Optional[int]]]:
@@ -104,10 +107,9 @@ def _task_items(config: Dict[str, Any]) -> List[Tuple[str, Optional[int]]]:
     if not isinstance(tasks_data, dict):
         return []
 
-    keys = list(tasks_data.keys())
-    has_specific_video = any(k in keys for k in ("WATCH_VIDEO_ON_DESKTOP", "WATCH_VIDEO_ON_MOBILE"))
+    keys = list(tasks_data)
+    has_specific_video = any(key in keys for key in ("WATCH_VIDEO_ON_DESKTOP", "WATCH_VIDEO_ON_MOBILE"))
     result: List[Tuple[str, Optional[int]]] = []
-
     for key, payload in tasks_data.items():
         if key == "WATCH_VIDEO" and has_specific_video:
             continue
@@ -129,13 +131,13 @@ def _task_text(config: Dict[str, Any]) -> str:
     lines = []
     for key, target in items:
         label = TASK_LABELS.get(key, key.replace("_", " ").title())
-        suffix = f" ({target} secondi)" if target is not None and target > 0 else ""
+        suffix = f" ({target} secondi)" if target and target > 0 else ""
         lines.append(f"• {label}{suffix}")
     return "\n".join(lines)
 
 
 def _platforms(config: Dict[str, Any]) -> str:
-    platforms = []
+    platforms: List[str] = []
     for key, _ in _task_items(config):
         label = PLATFORM_LABELS.get(key)
         if label and label not in platforms:
@@ -145,6 +147,8 @@ def _platforms(config: Dict[str, Any]) -> str:
 
 def _hero_image(quest_id: str, config: Dict[str, Any]) -> Optional[str]:
     assets = config.get("assets") or {}
+    if not isinstance(assets, dict):
+        return None
     for key in ("hero", "quest_bar_hero", "game_tile_light", "game_tile"):
         url = _cdn_url(quest_id, assets.get(key))
         if url:
@@ -153,53 +157,56 @@ def _hero_image(quest_id: str, config: Dict[str, Any]) -> Optional[str]:
 
 
 def _reward_image(quest_id: str, config: Dict[str, Any]) -> Optional[str]:
-    reward_config = config.get("rewards_config") or {}
-    rewards = reward_config.get("rewards") or config.get("rewards") or []
-    if not rewards or not isinstance(rewards[0], dict):
+    rewards = _rewards(config)
+    if not rewards:
         return None
     reward = rewards[0]
     asset = reward.get("asset")
-    if asset and not str(asset).lower().endswith((".mp4", ".webm")):
+    if asset and not str(asset).lower().split("?", 1)[0].endswith((".mp4", ".webm", ".mov")):
         return _cdn_url(quest_id, str(asset))
     if reward.get("orb_quantity") is not None:
         return "https://cdn.discordapp.com/assets/content/eff35518172b971fa47c521ca21c7576d3a245433a669a6765f63b744b7b733a.webm?format=png"
     return None
 
 
+def _cta_url(config: Dict[str, Any]) -> Optional[str]:
+    app = config.get("application") or {}
+    cta = config.get("cta_config") or {}
+    link = cta.get("link") or app.get("link") or app.get("store_link")
+    if isinstance(link, str) and link.startswith(("http://", "https://")):
+        return link
+    return None
+
+
 def _canonical_key(entry: Dict[str, Any], config: Dict[str, Any]) -> str:
     app = config.get("application") or {}
     app_id = str(app.get("id") or config.get("application_id") or "")
-    reward_config = config.get("rewards_config") or {}
-    rewards = reward_config.get("rewards") or config.get("rewards") or []
-    reward_sig = []
-    for reward in rewards:
-        if not isinstance(reward, dict):
-            continue
-        reward_sig.append(
-            f"{reward.get('sku_id', '')}:{reward.get('orb_quantity', '')}:{(reward.get('messages') or {}).get('name', reward.get('name', ''))}"
-        )
+    rewards = _rewards(config)
+    reward_sig = ",".join(
+        f"{reward.get('sku_id', '')}:{reward.get('orb_quantity', '')}:{(reward.get('messages') or {}).get('name', reward.get('name', ''))}"
+        for reward in rewards
+    )
     task_sig = ",".join(f"{name}:{target or ''}" for name, target in sorted(_task_items(config)))
     base = "|".join(
-        [
+        (
             app_id,
             str(config.get("starts_at") or ""),
             str(config.get("expires_at") or ""),
             task_sig,
-            ",".join(sorted(reward_sig)),
-        ]
+            reward_sig,
+        )
     )
-
     if app_id == DISCORD_SPONSORED_APP_ID:
         name = str((config.get("messages") or {}).get("quest_name") or "").strip().lower()
         return base + "|" + name
-    return base or str(entry.get("id"))
+    return base or str(entry.get("id") or "")
 
 
 class QuestTracker(commands.Cog):
-    """Traccia le Discord Quest e pubblica le nuove quest in un canale configurato."""
+    """Tracker Discord Quest con embed fisso e menzione del ruolo sotto l'embed."""
 
     __author__ = "danyx64"
-    __version__ = "1.1.0"
+    __version__ = "4.0.0"
 
     def __init__(self, bot: Red):
         self.bot = bot
@@ -208,7 +215,7 @@ class QuestTracker(commands.Cog):
             enabled=False,
             channel_id=None,
             role_id=None,
-            message_template=DEFAULT_TEMPLATE,
+            ping_role=True,
             seen_keys=[],
             initialized=False,
         )
@@ -245,17 +252,15 @@ class QuestTracker(commands.Cog):
         for entry in primary + fallback:
             if not isinstance(entry, dict):
                 continue
-            key = str(entry.get("id") or "")
-            if not key:
-                continue
-            if key not in merged:
-                merged[key] = entry
+            quest_id = str(entry.get("id") or "")
+            if quest_id and quest_id not in merged:
+                merged[quest_id] = entry
         return list(merged.values())
 
     def _active_quests(self, entries: Iterable[Dict[str, Any]]) -> List[Tuple[str, Dict[str, Any], Dict[str, Any]]]:
         now = datetime.now(timezone.utc)
         active: List[Tuple[str, Dict[str, Any], Dict[str, Any]]] = []
-        seen_canonical = set()
+        canonical_seen = set()
 
         def start_key(item: Dict[str, Any]) -> datetime:
             cfg = _quest_config(item) or {}
@@ -273,46 +278,37 @@ class QuestTracker(commands.Cog):
             if name.upper().startswith("[TEST]"):
                 continue
             canonical = _canonical_key(entry, config)
-            if canonical in seen_canonical:
+            if canonical in canonical_seen:
                 continue
-            seen_canonical.add(canonical)
+            canonical_seen.add(canonical)
             active.append((canonical, entry, config))
         return active
 
     def _quest_payload(self, entry: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, str]:
-        quest_id = str(entry.get("id") or "Sconosciuto")
         messages = config.get("messages") or {}
         app = config.get("application") or {}
-        quest_name = str(messages.get("quest_name") or messages.get("game_title") or app.get("name") or "Discord Quest")
-        game_name = str(app.get("name") or messages.get("game_title") or "Discord")
-        application_id = str(app.get("id") or config.get("application_id") or "Sconosciuto")
-        reward, sku, _ = _reward_data(config)
+        reward, sku, orb_quantity = _reward_data(config)
         return {
-            "quest": quest_name,
-            "game": game_name,
-            "reward": reward,
+            "quest_id": str(entry.get("id") or "Sconosciuto"),
+            "quest": str(messages.get("quest_name") or messages.get("game_title") or app.get("name") or "Discord Quest"),
+            "game": str(app.get("name") or messages.get("game_title") or "Discord"),
+            "application_id": str(app.get("id") or config.get("application_id") or "Sconosciuto"),
             "start": _date_it(config.get("starts_at")),
             "end": _date_it(config.get("expires_at")),
-            "quest_id": quest_id,
-            "application_id": application_id,
-            "sku": sku or "Sconosciuto",
+            "reward": reward,
+            "sku": sku,
+            "orb_amount": "" if orb_quantity is None else str(orb_quantity),
         }
 
     def _build_embed(self, entry: Dict[str, Any], config: Dict[str, Any], *, test: bool = False) -> discord.Embed:
         data = self._quest_payload(entry, config)
         prefix = "TEST • " if test else ""
-        app = config.get("application") or {}
-        cta = config.get("cta_config") or {}
-        link = cta.get("link") or app.get("link") or app.get("store_link")
-        if link and not str(link).startswith(("http://", "https://")):
-            link = None
-
         embed = discord.Embed(
             title=f"{prefix}Nuova Quest - {data['quest']}",
-            url=link,
+            url=_cta_url(config),
             colour=discord.Colour.blurple(),
-            timestamp=datetime.now(timezone.utc),
         )
+
         info = (
             f"**Durata:** {data['start']} - {data['end']}\n"
             f"**Piattaforme:** {_platforms(config)}\n"
@@ -320,8 +316,11 @@ class QuestTracker(commands.Cog):
         )
         embed.add_field(name="📋 Informazioni Quest", value=info, inline=False)
         embed.add_field(name="✅ Obiettivi", value=_task_text(config)[:1024], inline=False)
+
         reward_text = f"**Tipo:** Ricompensa virtuale\n**Nome:** {data['reward']}"
-        if data["sku"] != "Sconosciuto":
+        if data["orb_amount"]:
+            reward_text += f"\n**Orb Amount:** {data['orb_amount']}"
+        if data["sku"]:
             reward_text += f"\n**SKU ID:** `{data['sku']}`"
         embed.add_field(name="🎁 Ricompense", value=reward_text[:1024], inline=False)
 
@@ -332,28 +331,44 @@ class QuestTracker(commands.Cog):
         if reward_image:
             embed.set_thumbnail(url=reward_image)
 
-        embed.set_footer(text=f"Quest ID: {data['quest_id']} • Controllo automatico ogni 5 minuti")
+        # Volutamente nessun footer e nessun timestamp.
         return embed
 
-    async def _render_message(self, guild: discord.Guild, entry: Dict[str, Any], config: Dict[str, Any]) -> str:
+    async def _send_role_below(self, channel: discord.TextChannel, guild: discord.Guild, *, test: bool) -> None:
         settings = await self.config.guild(guild).all()
         role = guild.get_role(settings.get("role_id") or 0)
-        data = self._quest_payload(entry, config)
-        values = SafeFormatDict(data)
-        values["mention"] = role.mention if role else ""
-        template = settings.get("message_template") or DEFAULT_TEMPLATE
-        try:
-            return template.format_map(values).strip()
-        except (ValueError, KeyError):
-            return DEFAULT_TEMPLATE.format_map(values).strip()
+        if role is None:
+            return
+
+        if test:
+            await channel.send(
+                role.mention,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
+
+        if settings.get("ping_role", True):
+            await channel.send(
+                role.mention,
+                allowed_mentions=discord.AllowedMentions(
+                    roles=True,
+                    users=False,
+                    everyone=False,
+                ),
+            )
+
+    async def _send_quest(self, channel: discord.TextChannel, guild: discord.Guild, entry: Dict[str, Any], config: Dict[str, Any], *, test: bool = False) -> None:
+        await channel.send(
+            embed=self._build_embed(entry, config, test=test),
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+        await self._send_role_below(channel, guild, test=test)
 
     async def _mark_initial_state(self, guild: discord.Guild) -> int:
-        entries = await self._fetch_quests()
-        active = self._active_quests(entries)
-        keys = [canonical for canonical, _, _ in active]
-        await self.config.guild(guild).seen_keys.set(keys)
+        active = self._active_quests(await self._fetch_quests())
+        await self.config.guild(guild).seen_keys.set([canonical for canonical, _, _ in active])
         await self.config.guild(guild).initialized.set(True)
-        return len(keys)
+        return len(active)
 
     async def _scan_guild(self, guild: discord.Guild, *, force: bool = False) -> int:
         settings = await self.config.guild(guild).all()
@@ -364,38 +379,29 @@ class QuestTracker(commands.Cog):
         if not isinstance(channel, discord.TextChannel):
             return 0
 
-        entries = await self._fetch_quests()
-        active = self._active_quests(entries)
+        active = self._active_quests(await self._fetch_quests())
         if not settings.get("initialized"):
             await self.config.guild(guild).seen_keys.set([canonical for canonical, _, _ in active])
             await self.config.guild(guild).initialized.set(True)
             return 0
 
         seen = set(settings.get("seen_keys") or [])
-        current_keys = {canonical for canonical, _, _ in active}
-        sent = 0
+        current = {canonical for canonical, _, _ in active}
         new_seen = set(seen)
+        sent = 0
 
         for canonical, entry, config in reversed(active):
             if canonical in seen:
                 continue
-            content = await self._render_message(guild, entry, config)
-            embed = self._build_embed(entry, config)
             try:
-                await channel.send(
-                    content=content or None,
-                    embed=embed,
-                    allowed_mentions=discord.AllowedMentions(roles=True, users=False, everyone=False),
-                )
+                await self._send_quest(channel, guild, entry, config, test=False)
             except (discord.Forbidden, discord.HTTPException):
                 continue
             new_seen.add(canonical)
             sent += 1
 
-        ordered = list(new_seen | current_keys)
-        if len(ordered) > 500:
-            ordered = ordered[-500:]
-        await self.config.guild(guild).seen_keys.set(ordered)
+        ordered = list(new_seen | current)
+        await self.config.guild(guild).seen_keys.set(ordered[-500:])
         return sent
 
     @tasks.loop(minutes=5)
@@ -417,99 +423,80 @@ class QuestTracker(commands.Cog):
     @commands.group(name="quest", aliases=["quests"], invoke_without_command=True)
     @commands.guild_only()
     async def quest(self, ctx: commands.Context):
-        """Configura e controlla il tracker delle Discord Quest. Funziona sia con .quest che con .quests."""
+        """Comandi QuestTracker."""
         await ctx.send_help(ctx.command)
 
     @quest.command(name="setup")
     @commands.admin_or_permissions(manage_guild=True)
     async def quest_setup(self, ctx: commands.Context, channel: discord.TextChannel):
-        """Configura il canale, abilita il tracker e registra le quest gia attive senza pubblicarle."""
         await self.config.guild(ctx.guild).channel_id.set(channel.id)
         await self.config.guild(ctx.guild).enabled.set(True)
         async with ctx.typing():
             count = await self._mark_initial_state(ctx.guild)
-        await ctx.send(
-            f"✅ QuestTracker attivato in {channel.mention}. Ho registrato **{count}** quest attive; da ora pubblichero solo quelle nuove."
-        )
+        await ctx.send(f"✅ QuestTracker attivato in {channel.mention}. Quest attive registrate: **{count}**.")
 
     @quest.command(name="canale")
     @commands.admin_or_permissions(manage_guild=True)
     async def quest_channel(self, ctx: commands.Context, channel: discord.TextChannel):
-        """Cambia il canale delle notifiche."""
         await self.config.guild(ctx.guild).channel_id.set(channel.id)
         await ctx.send(f"✅ Canale Quest impostato su {channel.mention}.")
 
     @quest.command(name="ruolo")
     @commands.admin_or_permissions(manage_guild=True)
     async def quest_role(self, ctx: commands.Context, role: discord.Role):
-        """Imposta il ruolo da menzionare tramite {mention}."""
         await self.config.guild(ctx.guild).role_id.set(role.id)
-        await ctx.send(f"✅ Le nuove Quest menzioneranno {role.mention} quando il messaggio contiene `{{mention}}`.")
+        await ctx.send(f"✅ Ruolo Quest impostato su {role.mention}.")
 
     @quest.command(name="noruolo", aliases=["ruolooff"])
     @commands.admin_or_permissions(manage_guild=True)
     async def quest_no_role(self, ctx: commands.Context):
-        """Disattiva la menzione del ruolo."""
         await self.config.guild(ctx.guild).role_id.set(None)
-        await ctx.send("✅ Menzione ruolo disattivata.")
+        await ctx.send("✅ Ruolo Quest rimosso.")
 
-    @quest.command(name="messaggio")
+    @quest.command(name="ping")
     @commands.admin_or_permissions(manage_guild=True)
-    async def quest_message(self, ctx: commands.Context, *, testo: Optional[str] = None):
-        """Mostra o modifica il messaggio sopra l'embed. Usa 'reset' per il predefinito."""
-        if testo is None:
-            current = await self.config.guild(ctx.guild).message_template()
-            return await ctx.send(
-                "**Messaggio attuale:**\n"
-                f"```\n{current}\n```\n"
-                "Variabili: `{mention}` `{quest}` `{game}` `{reward}` `{start}` `{end}` `{quest_id}` `{application_id}` `{sku}`"
-            )
-        if testo.strip().lower() == "reset":
-            await self.config.guild(ctx.guild).message_template.set(DEFAULT_TEMPLATE)
-            return await ctx.send("✅ Messaggio predefinito ripristinato.")
-        if len(testo) > 1800:
-            return await ctx.send("❌ Il messaggio e troppo lungo. Massimo 1800 caratteri.")
-        await self.config.guild(ctx.guild).message_template.set(testo.replace("\\n", "\n"))
-        await ctx.send("✅ Messaggio Quest aggiornato. Usa `.quest test` per vedere l'anteprima.")
+    async def quest_ping(self, ctx: commands.Context, state: Optional[str] = None):
+        conf = self.config.guild(ctx.guild)
+        if state is None:
+            enabled = await conf.ping_role()
+            return await ctx.send(f"Ping ruolo: **{'attivo' if enabled else 'disattivato'}**.")
+        value = state.lower().strip()
+        if value in {"on", "si", "yes", "true", "1", "attiva", "attivo"}:
+            await conf.ping_role.set(True)
+            return await ctx.send("✅ Ping ruolo attivato.")
+        if value in {"off", "no", "false", "0", "disattiva", "disattivo"}:
+            await conf.ping_role.set(False)
+            return await ctx.send("✅ Ping ruolo disattivato.")
+        await ctx.send("Usa `.quest ping on` oppure `.quest ping off`.")
 
-    @quest.command(name="test")
+    @quest.command(name="test", aliases=["preview", "anteprima"])
     @commands.admin_or_permissions(manage_guild=True)
     async def quest_test(self, ctx: commands.Context):
-        """Invia un'anteprima usando una quest attiva, senza notificare il ruolo."""
+        """Mostra la stessa grafica della notifica normale e il ruolo sotto l'embed."""
         async with ctx.typing():
             active = self._active_quests(await self._fetch_quests())
         if not active:
             return await ctx.send("❌ Al momento non trovo Quest attive nei feed.")
         _, entry, config = active[0]
-        content = await self._render_message(ctx.guild, entry, config)
-        embed = self._build_embed(entry, config, test=True)
-        await ctx.send(content=content or None, embed=embed, allowed_mentions=discord.AllowedMentions.none())
+        await self._send_quest(ctx.channel, ctx.guild, entry, config, test=True)
 
     @quest.command(name="attive")
     async def quest_active(self, ctx: commands.Context):
-        """Mostra un riepilogo delle quest attive rilevate."""
         async with ctx.typing():
             active = self._active_quests(await self._fetch_quests())
         if not active:
             return await ctx.send("Al momento non risultano Quest Discord attive.")
-
         lines = []
         for _, entry, config in active[:15]:
             data = self._quest_payload(entry, config)
             lines.append(f"• **{data['quest']}** — {data['reward']} — fino al `{data['end']}`")
         if len(active) > 15:
             lines.append(f"…e altre {len(active) - 15}.")
-        embed = discord.Embed(
-            title=f"🎯 Quest Discord attive: {len(active)}",
-            description="\n".join(lines),
-            colour=discord.Colour.blurple(),
-        )
-        await ctx.send(embed=embed)
+        await ctx.send(embed=discord.Embed(title=f"🎯 Quest Discord attive: {len(active)}", description="\n".join(lines), colour=discord.Colour.blurple()))
 
     @quest.command(name="controlla", aliases=["check"])
     @commands.admin_or_permissions(manage_guild=True)
     async def quest_check(self, ctx: commands.Context):
-        """Forza subito un controllo delle nuove quest."""
         async with ctx.typing():
             sent = await self._scan_guild(ctx.guild, force=True)
         await ctx.send(f"✅ Controllo completato. Nuove Quest pubblicate: **{sent}**.")
@@ -517,35 +504,50 @@ class QuestTracker(commands.Cog):
     @quest.command(name="on", aliases=["enable", "attiva"])
     @commands.admin_or_permissions(manage_guild=True)
     async def quest_on(self, ctx: commands.Context):
-        """Abilita il controllo automatico."""
-        channel_id = await self.config.guild(ctx.guild).channel_id()
-        if not channel_id:
+        if not await self.config.guild(ctx.guild).channel_id():
             return await ctx.send("❌ Prima usa `.quest setup #canale`.")
         await self.config.guild(ctx.guild).enabled.set(True)
-        await ctx.send("✅ Controllo automatico delle Quest attivato.")
+        await ctx.send("✅ QuestTracker attivato.")
 
     @quest.command(name="off", aliases=["disable", "disattiva"])
     @commands.admin_or_permissions(manage_guild=True)
     async def quest_off(self, ctx: commands.Context):
-        """Disabilita il controllo automatico senza cancellare la configurazione."""
         await self.config.guild(ctx.guild).enabled.set(False)
-        await ctx.send("⏸️ Controllo automatico delle Quest disattivato.")
+        await ctx.send("⏸️ QuestTracker disattivato.")
 
     @quest.command(name="status")
     async def quest_status(self, ctx: commands.Context):
-        """Mostra la configurazione del tracker."""
         settings = await self.config.guild(ctx.guild).all()
         channel = ctx.guild.get_channel(settings.get("channel_id") or 0)
         role = ctx.guild.get_role(settings.get("role_id") or 0)
         embed = discord.Embed(title="🎯 QuestTracker", colour=discord.Colour.blurple())
+        embed.add_field(name="Versione", value=self.__version__, inline=True)
         embed.add_field(name="Stato", value="✅ Attivo" if settings.get("enabled") else "⏸️ Disattivato", inline=True)
         embed.add_field(name="Canale", value=channel.mention if channel else "Non configurato", inline=True)
         embed.add_field(name="Ruolo", value=role.mention if role else "Nessuno", inline=True)
+        embed.add_field(name="Ping ruolo", value="✅ Attivo" if settings.get("ping_role", True) else "⛔ Disattivato", inline=True)
         embed.add_field(name="Controllo", value="Ogni 5 minuti", inline=True)
-        embed.add_field(name="Comandi", value="`.quest ...` oppure `.quests ...`", inline=True)
-        embed.add_field(
-            name="Messaggio",
-            value=f"```\n{settings.get('message_template') or DEFAULT_TEMPLATE}\n```"[:1024],
-            inline=False,
-        )
         await ctx.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
+
+    @quest.command(name="version", aliases=["versione"])
+    async def quest_version(self, ctx: commands.Context):
+        await ctx.send(f"QuestTracker **v{self.__version__}** — file principale `questtracker/questtracker.py`.")
+
+    @quest.command(name="messaggio", aliases=["message", "testo"])
+    @commands.admin_or_permissions(manage_guild=True)
+    async def quest_message(self, ctx: commands.Context, *, testo: Optional[str] = None):
+        await ctx.send("ℹ️ Il layout e fisso nel codice: niente TXT e niente template esterni.")
+
+    @quest.command(name="titolo", aliases=["title"])
+    @commands.admin_or_permissions(manage_guild=True)
+    async def quest_title(self, ctx: commands.Context, *, testo: Optional[str] = None):
+        await ctx.send("ℹ️ Il titolo e fisso nel codice: `Nuova Quest - <nome quest>`. ")
+
+    @quest.command(name="footer")
+    @commands.admin_or_permissions(manage_guild=True)
+    async def quest_footer(self, ctx: commands.Context, *, testo: Optional[str] = None):
+        await ctx.send("✅ Il footer e disattivato: dopo l'immagine finisce l'embed.")
+
+    @quest.command(name="placeholders", aliases=["placeholder", "vars", "variabili"])
+    async def quest_placeholders(self, ctx: commands.Context):
+        await ctx.send("ℹ️ I placeholder non vengono piu usati: il layout e fisso direttamente nel cog.")
