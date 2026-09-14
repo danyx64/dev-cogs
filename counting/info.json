@@ -1,0 +1,11 @@
+{
+  "author": ["danyx64"],
+  "name": "Counting",
+  "description": "Counting persistente per Red-DiscordBot: niente reset sugli errori, niente doppi turni consecutivi, messaggi non validi eliminati e reazione verde sui numeri corretti.",
+  "install_msg": "Counting installato. Usa `[p]counting setup #canale [numero_corrente]`. Per personalizzare gli avvisi usa `[p]counting messages` e `[p]counting message <same|wrong|text|edit> <testo|off|reset>`.",
+  "short": "Counting persistente senza reset con messaggi personalizzabili.",
+  "end_user_data_statement": "Questo cog salva per server il canale del counting, il numero corrente, l'ultimo utente valido e le impostazioni dei messaggi. Non memorizza contenuti dei messaggi degli utenti.",
+  "min_bot_version": "3.5.0",
+  "requirements": [],
+  "tags": ["counting", "game", "utility", "moderation"]
+}
