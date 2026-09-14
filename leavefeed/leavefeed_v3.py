@@ -86,7 +86,7 @@ class LeaveFeed(BaseLeaveFeed):
             return False
 
     @BaseLeaveFeed.message_group.command(name="usage")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def message_usage(self, ctx: commands.Context):
         """Mostra tutti i placeholder disponibili nei messaggi LeaveFeed."""
         await ctx.send(

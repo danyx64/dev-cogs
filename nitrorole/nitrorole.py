@@ -43,7 +43,7 @@ class NitroRole(commands.Cog):
     """Dai il benvenuto ai nuovi booster Nitro e/o assegna loro un ruolo speciale."""
 
     __author__ = "Jakub Kuczys / adattamento italiano danyx64"
-    __version__ = "1.0.0-it"
+    __version__ = "1.0.1-it"
 
     def __init__(self, bot: Red) -> None:
         self.bot = bot
@@ -141,7 +141,7 @@ class NitroRole(commands.Cog):
 
         if (
             guild.owner_id != ctx.author.id
-            and role > ctx.author.top_role
+            and role >= ctx.author.top_role
             and not await self.bot.is_owner(ctx.author)
         ):
             await ctx.send("❌ Non puoi configurare un ruolo superiore al tuo ruolo piu alto.")

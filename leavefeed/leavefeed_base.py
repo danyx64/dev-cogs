@@ -81,7 +81,7 @@ class LeaveFeed(commands.Cog):
     @commands.guild_only()
     async def leavefeed(self,ctx): await ctx.send_help(ctx.command)
     @leavefeed.command(name="setchannel")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def setchannel(self,ctx,channel_id:int):
         channel=ctx.guild.get_channel(channel_id)
         if not isinstance(channel,discord.TextChannel): return await ctx.send("Non trovo un canale testuale con questo ID.")
@@ -89,27 +89,27 @@ class LeaveFeed(commands.Cog):
         if not (perms.view_channel and perms.send_messages and perms.embed_links): return await ctx.send("Mi servono Visualizza canale, Invia messaggi e Incorpora link in quel canale.")
         await self.config.guild(ctx.guild).feedback_channel_id.set(channel.id); await ctx.send(f"Canale feedback impostato su {channel.mention} (`{channel.id}`).")
     @leavefeed.command(name="message")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def setmessage(self,ctx,*,message:str):
         if len(message)>1900: return await ctx.send("Il messaggio deve essere lungo al massimo 1900 caratteri.")
         await self.config.guild(ctx.guild).message.set(message); await ctx.send("Messaggio DM aggiornato. Placeholder disponibili: `{user}` e `{server}`.")
     @leavefeed.command(name="enable")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def enable(self,ctx): await self.config.guild(ctx.guild).enabled.set(True); await ctx.send("LeaveFeed abilitato.")
     @leavefeed.command(name="disable")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def disable(self,ctx): await self.config.guild(ctx.guild).enabled.set(False); await ctx.send("LeaveFeed disabilitato.")
     @leavefeed.command(name="status")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def status(self,ctx):
         data=await self.config.guild(ctx.guild).all(); channel=ctx.guild.get_channel(data.get("feedback_channel_id")) if data.get("feedback_channel_id") else None; modals=data.get("modals") or {}
         await ctx.send(f"Stato: **{'attivo' if data.get('enabled') else 'disattivato'}**\nCanale: {channel.mention if channel else '—'}\nModali: **{len(modals)}**\nMessaggio: {self._clean(data.get('message') or '—',600)}")
     @leavefeed.command(name="test")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def test(self,ctx):
         ok=await self._send_leave_dm(ctx.author,ctx.guild); await ctx.send("DM di test inviato." if ok else "Non sono riuscito a mandarti il DM di test.")
     @leavefeed.group(name="modal",invoke_without_command=True)
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def modal_group(self,ctx): await ctx.send_help(ctx.command)
     @modal_group.command(name="add")
     async def modal_add(self,ctx,key:str,*,button_label:str):
@@ -159,7 +159,7 @@ class LeaveFeed(commands.Cog):
             data["button_style"]=style
         await ctx.send("Stile del pulsante aggiornato.")
     @leavefeed.group(name="question",invoke_without_command=True)
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def question_group(self,ctx): await ctx.send_help(ctx.command)
     @question_group.command(name="add")
     async def question_add(self,ctx,modal_key:str,style:str,required:bool,min_length:int,max_length:int,*,label:str):

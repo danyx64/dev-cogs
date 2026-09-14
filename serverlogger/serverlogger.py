@@ -155,7 +155,7 @@ class ServerLogger(commands.Cog):
         await ctx.send_help(ctx.command)
 
     @log_group.command(name="setchannel")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def log_setchannel(self, ctx, channel_id: int):
         """Imposta il canale dei log usando il suo ID."""
         channel = ctx.guild.get_channel(channel_id)
@@ -168,12 +168,12 @@ class ServerLogger(commands.Cog):
         await ctx.send(f"Canale log impostato su {channel.mention} (`{channel.id}`).")
 
     @log_group.command(name="enable")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def log_enable(self, ctx):
         await self.config.guild(ctx.guild).enabled.set(True); await ctx.send("ServerLogger abilitato.")
 
     @log_group.command(name="disable")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def log_disable(self, ctx):
         await self.config.guild(ctx.guild).enabled.set(False); await ctx.send("ServerLogger disabilitato.")
 
@@ -221,7 +221,7 @@ class ServerLogger(commands.Cog):
         await self._send_search_results(ctx, filters, limit)
 
     @log_group.command(name="clear")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def log_clear(self, ctx, confirmation: str = ""):
         if confirmation.upper() != "CONFERMO": return await ctx.send("Per eliminare definitivamente i log usa `.log clear CONFERMO`.")
         async with self._db_lock: deleted = await asyncio.to_thread(self._clear_guild_logs_sync, ctx.guild.id)

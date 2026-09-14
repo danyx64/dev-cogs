@@ -142,7 +142,7 @@ class LogSettingsView(discord.ui.View):
 class ServerLogger(BaseServerLogger):
     """ServerLogger v1.7: pannello interattivo per scegliere cosa loggare."""
 
-    __version__ = "1.7.0"
+    __version__ = "1.7.1"
 
     def __init__(self, bot):
         super().__init__(bot)
@@ -241,7 +241,7 @@ class ServerLogger(BaseServerLogger):
         )
 
     @BaseServerLogger.log_group.command(name="settings", aliases=["setting"])
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def log_settings(self, ctx: commands.Context):
         """Apre un pannello interattivo per scegliere quali categorie di eventi registrare."""
         settings = await self._get_category_settings(ctx.guild)

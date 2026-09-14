@@ -16,7 +16,7 @@ class Welcome(commands.Cog):
     """Invia un welcome personalizzato con immagine generata automaticamente."""
 
     __author__ = "danyx64"
-    __version__ = "2.6.0"
+    __version__ = "2.6.1"
 
     def __init__(self, bot: Red):
         self.bot = bot
@@ -281,7 +281,7 @@ class Welcome(commands.Cog):
         await ctx.send_help(ctx.command)
 
     @welcome.command(name="setchannel")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def welcome_setchannel(self, ctx, channel_id: int):
         channel = ctx.guild.get_channel(channel_id)
         if not isinstance(channel, discord.TextChannel):
@@ -290,19 +290,19 @@ class Welcome(commands.Cog):
         await ctx.send(f"Canale welcome impostato su {channel.mention}.")
 
     @welcome.command(name="message")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def welcome_message(self, ctx, *, text: str):
         await self.config.guild(ctx.guild).message.set(text[:2000])
         await ctx.send("Messaggio Discord aggiornato.")
 
     @welcome.command(name="imagemessage", aliases=["imagetext"])
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def welcome_imagemessage(self, ctx, *, text: str):
         await self.config.guild(ctx.guild).image_message.set(text[:300])
         await ctx.send("Testo salvato. Il layout grafico usa automaticamente Benvenuto / nome Discord / nome server.")
 
     @welcome.command(name="background", aliases=["bg"])
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def welcome_background(self, ctx, url: str = None):
         if ctx.message.attachments:
             url = ctx.message.attachments[0].url
@@ -323,7 +323,7 @@ class Welcome(commands.Cog):
         )
 
     @welcome.command(name="clearbackground", aliases=["clearbg"])
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def welcome_clearbackground(self, ctx):
         await self.config.guild(ctx.guild).background_url.set(None)
         self._background_cache.pop(ctx.guild.id, None)
@@ -339,13 +339,13 @@ class Welcome(commands.Cog):
         )
 
     @welcome.command(name="enable")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def welcome_enable(self, ctx):
         await self.config.guild(ctx.guild).enabled.set(True)
         await ctx.send("Welcome abilitato.")
 
     @welcome.command(name="disable")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def welcome_disable(self, ctx):
         await self.config.guild(ctx.guild).enabled.set(False)
         await ctx.send("Welcome disabilitato.")

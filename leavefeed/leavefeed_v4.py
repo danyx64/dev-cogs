@@ -266,7 +266,7 @@ class LeaveFeed(BaseLeaveFeed):
             await interaction.response.send_message("Non sono riuscito a consegnare il feedback allo staff.", ephemeral=True)
 
     @BaseLeaveFeed.modal_group.command(name="description")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def modal_description(self, ctx: commands.Context, key: str, *, text: str):
         """Imposta il paragrafo introduttivo mostrato prima del questionario."""
         if len(text) > 1900:
@@ -279,7 +279,7 @@ class LeaveFeed(BaseLeaveFeed):
         await ctx.send("Descrizione del modal aggiornata.")
 
     @BaseLeaveFeed.modal_group.command(name="preview")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def modal_preview(self, ctx: commands.Context, key: str):
         """Mostra la configurazione del modal e un pulsante per provarne il flusso reale."""
         data = await self._ensure_schema(ctx.guild)
@@ -308,7 +308,7 @@ class LeaveFeed(BaseLeaveFeed):
         await ctx.send(embed=embed, view=PreviewStartView(self, ctx.guild.id, key.lower(), ctx.author.id))
 
     @BaseLeaveFeed.modal_group.command(name="usage")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def modal_usage(self, ctx: commands.Context):
         """Spiega i comandi disponibili per costruire e provare un questionario."""
         await ctx.send(
@@ -326,7 +326,7 @@ class LeaveFeed(BaseLeaveFeed):
         )
 
     @BaseLeaveFeed.question_group.command(name="addmore")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def question_addmore(self, ctx: commands.Context, modal_key: str, style: str, required: bool, min_length: int, max_length: int, *, label: str):
         """Aggiunge una domanda testuale extra; il questionario verrà diviso automaticamente in più pagine."""
         style = style.lower()
@@ -347,7 +347,7 @@ class LeaveFeed(BaseLeaveFeed):
         await ctx.send("Domanda aggiunta al questionario.")
 
     @BaseLeaveFeed.question_group.command(name="addchoice")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def question_addchoice(self, ctx: commands.Context, modal_key: str, kind: str, required: bool, *, label: str):
         """Aggiunge una domanda a scelta singola o multipla."""
         kind = kind.lower()
@@ -364,7 +364,7 @@ class LeaveFeed(BaseLeaveFeed):
         await ctx.send("Domanda a scelta aggiunta. Ora aggiungi le opzioni con `question optionadd`.")
 
     @BaseLeaveFeed.question_group.command(name="optionadd")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def question_optionadd(self, ctx: commands.Context, modal_key: str, index: int, *, option: str):
         """Aggiunge un'opzione a una domanda choice. Formato: valore | etichetta | descrizione."""
         parts = [p.strip() for p in option.split("|", 2)]
@@ -388,7 +388,7 @@ class LeaveFeed(BaseLeaveFeed):
         await ctx.send("Opzione aggiunta.")
 
     @BaseLeaveFeed.question_group.command(name="optionremove")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def question_optionremove(self, ctx: commands.Context, modal_key: str, index: int, option_index: int):
         """Rimuove un'opzione da una domanda a scelta."""
         async with self.config.guild(ctx.guild).modals() as modals:
@@ -405,7 +405,7 @@ class LeaveFeed(BaseLeaveFeed):
         await ctx.send("Opzione rimossa.")
 
     @BaseLeaveFeed.leavefeed.group(name="paragraph", invoke_without_command=True)
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def paragraph_group(self, ctx: commands.Context):
         """Gestisce i paragrafi informativi inseriti tra le domande."""
         await ctx.send_help(ctx.command)
@@ -439,7 +439,7 @@ class LeaveFeed(BaseLeaveFeed):
         await ctx.send("Paragrafo aggiornato.")
 
     @BaseLeaveFeed.leavefeed.group(name="element", invoke_without_command=True)
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def element_group(self, ctx: commands.Context):
         """Gestisce ordine e rimozione di tutti gli elementi del questionario."""
         await ctx.send_help(ctx.command)

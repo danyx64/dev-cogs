@@ -7,7 +7,7 @@ from .hierarchyadmin_v2 import HierarchyAdmin as BaseHierarchyAdmin
 class HierarchyAdmin(BaseHierarchyAdmin):
     """HierarchyAdmin v1.2: diagnostica anche la gestione di un messaggio preciso."""
 
-    __version__ = "1.2.0"
+    __version__ = "1.2.1"
 
     @BaseHierarchyAdmin.ha.command(name="candelete", aliases=["checkmessage", "messagedelete"])
     @commands.admin_or_permissions(manage_messages=True)

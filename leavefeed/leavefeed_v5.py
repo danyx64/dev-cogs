@@ -59,7 +59,7 @@ class FinalizingTextPageModal(discord.ui.Modal):
 class LeaveFeed(BaseLeaveFeed):
     """LeaveFeed v2.2.3: consegna DM piu rapida e invio modal immediato."""
 
-    __version__ = "2.2.3"
+    __version__ = "2.2.4"
 
     async def _was_kicked_or_banned_fast(self, member: discord.Member) -> bool:
         guild = member.guild

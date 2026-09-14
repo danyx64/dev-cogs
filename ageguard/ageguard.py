@@ -15,7 +15,7 @@ class AgeGuard(commands.Cog):
     """Espelle automaticamente gli account Discord troppo recenti."""
 
     __author__ = "danyx64"
-    __version__ = "1.0.0"
+    __version__ = "1.0.1"
 
     def __init__(self, bot: Red):
         self.bot = bot
@@ -204,7 +204,7 @@ class AgeGuard(commands.Cog):
         await ctx.send(f"Età minima impostata a **{self._format_duration(seconds)}**.")
 
     @ageguard.command(name="setchannel")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def ag_setchannel(self, ctx: commands.Context, channel_id: int):
         """Imposta il canale dove registrare i kick eseguiti da AgeGuard."""
         channel = ctx.guild.get_channel(channel_id)
@@ -217,7 +217,7 @@ class AgeGuard(commands.Cog):
         await ctx.send(f"Canale log impostato su {channel.mention} (`{channel.id}`).")
 
     @ageguard.group(name="message", invoke_without_command=True)
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def ag_message(self, ctx: commands.Context):
         """Visualizza e modifica i messaggi personalizzabili di AgeGuard."""
         await ctx.send_help(ctx.command)
@@ -308,7 +308,7 @@ class AgeGuard(commands.Cog):
             await ctx.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
 
     @ageguard.command(name="test")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def ag_test(self, ctx: commands.Context, user_id: int = None):
         """Controlla l'età di un membro senza espellerlo."""
         member = ctx.guild.get_member(user_id or ctx.author.id)

@@ -290,7 +290,7 @@ class LeaveFeed(commands.Cog):
         await ctx.send_help(ctx.command)
 
     @leavefeed.command(name="setchannel")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def setchannel(self, ctx: commands.Context, channel_id: int):
         """Imposta tramite ID il canale in cui ricevere le risposte dei modal."""
         channel = ctx.guild.get_channel(channel_id)
@@ -303,21 +303,21 @@ class LeaveFeed(commands.Cog):
         await ctx.send(f"Canale feedback impostato su {channel.mention} (`{channel.id}`).")
 
     @leavefeed.command(name="enable")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def enable(self, ctx: commands.Context):
         """Abilita l'invio automatico dei DM a chi lascia volontariamente il server."""
         await self.config.guild(ctx.guild).enabled.set(True)
         await ctx.send("LeaveFeed abilitato.")
 
     @leavefeed.command(name="disable")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def disable(self, ctx: commands.Context):
         """Disabilita completamente l'invio automatico dei DM LeaveFeed."""
         await self.config.guild(ctx.guild).enabled.set(False)
         await ctx.send("LeaveFeed disabilitato.")
 
     @leavefeed.command(name="status")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def status(self, ctx: commands.Context):
         """Mostra stato, canale, messaggio attivo e quantità di elementi configurati."""
         data = await self._ensure_schema(ctx.guild)
@@ -330,14 +330,14 @@ class LeaveFeed(commands.Cog):
         )
 
     @leavefeed.command(name="test")
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def test(self, ctx: commands.Context):
         """Invia a te stesso il messaggio LeaveFeed attivo per provarlo senza uscire."""
         ok = await self._send_leave_dm(ctx.author, ctx.guild)
         await ctx.send("DM di test inviato." if ok else "Non sono riuscito a mandarti il DM di test.")
 
     @leavefeed.group(name="message", invoke_without_command=True)
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def message_group(self, ctx: commands.Context):
         """Crea, visualizza, modifica, elimina e seleziona i messaggi DM."""
         await ctx.send_help(ctx.command)
@@ -422,7 +422,7 @@ class LeaveFeed(commands.Cog):
         await ctx.send(f"Messaggio `{key}` eliminato.")
 
     @leavefeed.group(name="button", invoke_without_command=True)
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def button_group(self, ctx: commands.Context):
         """Crea pulsanti, collega un modal e assegna i pulsanti ai messaggi DM."""
         await ctx.send_help(ctx.command)
@@ -561,7 +561,7 @@ class LeaveFeed(commands.Cog):
         await ctx.send(f"Pulsante `{key}` eliminato.")
 
     @leavefeed.group(name="modal", invoke_without_command=True)
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def modal_group(self, ctx: commands.Context):
         """Crea e modifica modal, titolo, risposta finale e domande."""
         await ctx.send_help(ctx.command)
@@ -648,7 +648,7 @@ class LeaveFeed(commands.Cog):
         await ctx.send(f"Modal `{key}` eliminato.")
 
     @leavefeed.group(name="question", invoke_without_command=True)
-    @commands.admin_or_permissions(administrator=True)
+    @commands.admin_or_permissions(manage_guild=True)
     async def question_group(self, ctx: commands.Context):
         """Aggiunge e modifica le singole domande presenti nei modal."""
         await ctx.send_help(ctx.command)

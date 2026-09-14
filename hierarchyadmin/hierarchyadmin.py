@@ -73,6 +73,17 @@ class HierarchyAdmin(commands.Cog):
         if not role.is_default() and role >= me.top_role:
             await ctx.send("Non posso modificare un ruolo uguale o superiore al mio ruolo più alto.")
             return False
+
+        author = ctx.author
+        if (
+            isinstance(author, discord.Member)
+            and author.id != ctx.guild.owner_id
+            and not author.guild_permissions.administrator
+            and not role.is_default()
+            and role >= author.top_role
+        ):
+            await ctx.send("Non puoi modificare un ruolo uguale o superiore al tuo ruolo più alto.")
+            return False
         return True
 
     @commands.group(name="ha", invoke_without_command=True)
