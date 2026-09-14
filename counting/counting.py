@@ -8,33 +8,15 @@ from redbot.core import Config, commands
 from redbot.core.bot import Red
 
 
-DEFAULT_MESSAGES: Dict[str, str] = {
-    "same": "{user}, non puoi contare due volte di fila. Aspetta che conti un altro utente.",
-    "wrong": "{user}, numero sbagliato. Il prossimo numero e **{next}**.",
-    "text": "{user}, in questo canale puoi scrivere solo il prossimo numero: **{next}**.",
-    "edit": "{user}, i messaggi del counting non si modificano. Il conteggio resta a **{count}**.",
-}
-
-MESSAGE_ALIASES = {
-    "same": "same",
-    "sameuser": "same",
-    "stessoutente": "same",
-    "wrong": "wrong",
-    "number": "wrong",
-    "numero": "wrong",
-    "text": "text",
-    "testo": "text",
-    "invalid": "text",
-    "edit": "edit",
-    "modifica": "edit",
-}
+SAME_USER_MESSAGE = "Non puoi contare da solo."
+SAME_USER_MESSAGE_SECONDS = 5
 
 
 class Counting(commands.Cog):
     """Counting semplice: niente reset sugli errori, niente doppi turni consecutivi."""
 
     __author__ = "danyx64"
-    __version__ = "1.0.0"
+    __version__ = "1.1.0"
 
     def __init__(self, bot: Red):
         self.bot = bot
@@ -45,8 +27,6 @@ class Counting(commands.Cog):
             count=0,
             last_user_id=None,
             reaction="✅",
-            notice_seconds=5,
-            messages=dict(DEFAULT_MESSAGES),
         )
         self._locks: Dict[int, asyncio.Lock] = {}
 
@@ -72,71 +52,22 @@ class Counting(commands.Cog):
         )
 
     @staticmethod
-    def _message_key(value: str) -> Optional[str]:
-        return MESSAGE_ALIASES.get(value.lower().strip())
-
-    @staticmethod
-    def _validate_template(template: str) -> Optional[str]:
-        try:
-            template.format(user="@utente", next=2, count=1, channel="#counting")
-        except (KeyError, ValueError, IndexError) as exc:
-            return str(exc)
-        return None
-
-    @staticmethod
-    def _render(template: str, message: discord.Message, *, expected: int, count: int) -> str:
-        if not template:
-            return ""
-        try:
-            return template.format(
-                user=message.author.mention,
-                next=expected,
-                count=count,
-                channel=message.channel.mention,
-            )
-        except (KeyError, ValueError, IndexError):
-            return ""
-
-    async def _delete_message(self, message: discord.Message) -> None:
+    async def _delete_message(message: discord.Message) -> None:
         try:
             await message.delete()
         except (discord.Forbidden, discord.NotFound, discord.HTTPException):
             pass
 
-    async def _send_notice(
-        self,
-        channel: discord.TextChannel,
-        text: str,
-        seconds: int,
-    ) -> None:
-        if not text:
-            return
+    @staticmethod
+    async def _send_same_user_notice(channel: discord.TextChannel) -> None:
         try:
             await channel.send(
-                text,
-                delete_after=seconds if seconds > 0 else None,
+                SAME_USER_MESSAGE,
+                delete_after=SAME_USER_MESSAGE_SECONDS,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
         except (discord.Forbidden, discord.HTTPException):
             pass
-
-    async def _reject(
-        self,
-        message: discord.Message,
-        settings: dict,
-        kind: str,
-        *,
-        expected: int,
-    ) -> None:
-        await self._delete_message(message)
-        templates = settings.get("messages") or {}
-        template = str(templates.get(kind) or "")
-        text = self._render(template, message, expected=expected, count=int(settings.get("count") or 0))
-        await self._send_notice(
-            message.channel,
-            text,
-            int(settings.get("notice_seconds") or 0),
-        )
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
@@ -155,21 +86,24 @@ class Counting(commands.Cog):
             current = int(settings.get("count") or 0)
             expected = current + 1
 
-            # Niente due numeri validi consecutivi dallo stesso utente.
-            if settings.get("last_user_id") == message.author.id:
-                await self._reject(message, settings, "same", expected=expected)
-                return
-
-            # Solo il numero puro: niente testo, allegati, sticker o altre cose.
+            # Nel canale counting deve esserci solo il numero puro.
+            # Testo, allegati, sticker o qualsiasi altra cosa vengono eliminati in silenzio.
             has_extra = bool(message.attachments or message.stickers)
             if has_extra or not message.content.isdigit():
-                await self._reject(message, settings, "text", expected=expected)
+                await self._delete_message(message)
                 return
 
-            # Richiede esattamente la rappresentazione del numero atteso.
-            # Quindi 001 non vale come 1.
+            # Un numero sbagliato viene eliminato senza alcun messaggio e senza reset.
+            # Anche formati come 001 non valgono come 1.
             if message.content != str(expected):
-                await self._reject(message, settings, "wrong", expected=expected)
+                await self._delete_message(message)
+                return
+
+            # Solo se l'utente prova davvero a mandare il prossimo numero corretto
+            # due volte di fila mostriamo l'unico avviso del cog.
+            if settings.get("last_user_id") == message.author.id:
+                await self._delete_message(message)
+                await self._send_same_user_notice(message.channel)
                 return
 
             await self.config.guild(message.guild).count.set(expected)
@@ -208,15 +142,9 @@ class Counting(commands.Cog):
             return
 
         async with self._lock(guild.id):
-            # Modificare un messaggio non cambia e non resetta il conteggio:
-            # il messaggio modificato viene semplicemente eliminato.
-            settings = await self.config.guild(guild).all()
-            current = int(settings.get("count") or 0)
+            # I messaggi del counting modificati vengono semplicemente eliminati.
+            # Il conteggio salvato non viene resettato e non viene inviato alcun avviso.
             await self._delete_message(message)
-            templates = settings.get("messages") or {}
-            template = str(templates.get("edit") or "")
-            text = self._render(template, message, expected=current + 1, count=current)
-            await self._send_notice(channel, text, int(settings.get("notice_seconds") or 0))
 
     @commands.group(name="counting", aliases=["count"], invoke_without_command=True)
     @commands.guild_only()
@@ -285,97 +213,11 @@ class Counting(commands.Cog):
     @commands.admin_or_permissions(manage_guild=True)
     async def counting_reaction(self, ctx: commands.Context, emoji: str = "✅"):
         """Imposta la reazione aggiunta ai conteggi corretti."""
-        if len(emoji) > 100:
+        emoji = emoji.strip()
+        if not emoji or len(emoji) > 100:
             return await ctx.send("❌ Emoji non valida.")
-        await self.config.guild(ctx.guild).reaction.set(emoji.strip())
-        await ctx.send(f"✅ Reazione corretta impostata su {emoji.strip()}")
-
-    @counting.command(name="messagetime", aliases=["messagetimeout", "tempo"])
-    @commands.admin_or_permissions(manage_guild=True)
-    async def counting_message_time(self, ctx: commands.Context, secondi: commands.Range[int, 0, 60]):
-        """Secondi prima di eliminare gli avvisi. 0 = non eliminarli automaticamente."""
-        await self.config.guild(ctx.guild).notice_seconds.set(secondi)
-        if secondi == 0:
-            await ctx.send("✅ Gli avvisi resteranno nel canale finche non vengono eliminati manualmente.")
-        else:
-            await ctx.send(f"✅ Gli avvisi spariranno dopo **{secondi} secondi**.")
-
-    @counting.command(name="message", aliases=["messaggio"])
-    @commands.admin_or_permissions(manage_guild=True)
-    async def counting_message(
-        self,
-        ctx: commands.Context,
-        tipo: str,
-        *,
-        testo: Optional[str] = None,
-    ):
-        """Personalizza un messaggio: same, wrong, text, edit. Usa off o reset."""
-        key = self._message_key(tipo)
-        if key is None:
-            return await ctx.send("❌ Tipo valido: `same`, `wrong`, `text`, `edit`.")
-
-        conf = self.config.guild(ctx.guild)
-        messages = await conf.messages()
-
-        if testo is None:
-            current = str((messages or {}).get(key) or "")
-            return await ctx.send(
-                f"**{key}**: {current if current else '`OFF`'}\n"
-                "Placeholder: `{user}` `{next}` `{count}` `{channel}`",
-                allowed_mentions=discord.AllowedMentions.none(),
-            )
-
-        value = testo.strip()
-        if value.lower() == "off":
-            value = ""
-        elif value.lower() == "reset":
-            value = DEFAULT_MESSAGES[key]
-        else:
-            if len(value) > 1800:
-                return await ctx.send("❌ Messaggio troppo lungo: massimo 1800 caratteri.")
-            error = self._validate_template(value)
-            if error:
-                return await ctx.send(
-                    "❌ Placeholder o parentesi non validi. Usa solo: "
-                    "`{user}` `{next}` `{count}` `{channel}`."
-                )
-
-        messages = dict(messages or {})
-        messages[key] = value
-        await conf.messages.set(messages)
-        await ctx.send(f"✅ Messaggio `{key}` aggiornato" + (" e disattivato." if not value else "."))
-
-    @counting.command(name="messages", aliases=["messaggi"])
-    @commands.admin_or_permissions(manage_guild=True)
-    async def counting_messages(self, ctx: commands.Context):
-        """Mostra tutti i messaggi personalizzabili."""
-        settings = await self.config.guild(ctx.guild).all()
-        messages = settings.get("messages") or {}
-        lines = []
-        for key in ("same", "wrong", "text", "edit"):
-            value = str(messages.get(key) or "")
-            lines.append(f"**{key}:** {value if value else '`OFF`'}")
-
-        embed = discord.Embed(
-            title="🔢 Counting - messaggi",
-            description="\n\n".join(lines),
-            colour=discord.Colour.blurple(),
-        )
-        embed.add_field(
-            name="Placeholder",
-            value="`{user}` `{next}` `{count}` `{channel}`",
-            inline=False,
-        )
-        embed.add_field(
-            name="Modifica rapida",
-            value=(
-                "`.counting message wrong <testo>`\n"
-                "`.counting message wrong off`\n"
-                "`.counting message wrong reset`"
-            ),
-            inline=False,
-        )
-        await ctx.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
+        await self.config.guild(ctx.guild).reaction.set(emoji)
+        await ctx.send(f"✅ Reazione corretta impostata su {emoji}")
 
     @counting.command(name="status")
     async def counting_status(self, ctx: commands.Context):
