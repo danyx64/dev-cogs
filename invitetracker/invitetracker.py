@@ -1,0 +1,945 @@
+"""InviteTracker italiano per Red-DiscordBot.
+
+Derivato da InviteTracker di TaakoOfficial/TaakosCogs (AGPL-3.0).
+Mantiene volutamente nome classe, identifier Config, chiavi persistenti e
+struttura dei record per riutilizzare senza migrazione i dati gia salvati.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import csv
+import io
+import logging
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Any
+
+import discord
+from redbot.core import Config, commands
+from redbot.core.utils.chat_formatting import box, pagify
+
+from .dashboard_integration import DashboardIntegration
+
+if TYPE_CHECKING:
+    from redbot.core.bot import Red
+
+log = logging.getLogger("red.taakoscogs.invitetracker")
+
+InviteCache = dict[str, dict[str, Any]]
+MemberRecord = dict[str, Any]
+StatsRecord = dict[str, int]
+
+
+class InviteTracker(DashboardIntegration, commands.Cog):
+    """Traccia inviti Discord, ingressi, uscite, join fake e classifiche."""
+
+    __author__ = "Taako / adattamento italiano danyx64"
+    __version__ = "1.2.1-it.1"
+
+    DEFAULT_COLOR = 0x5865F2
+    JOIN_COLOR = 0x3BA55D
+    LEAVE_COLOR = 0xED4245
+    FAKE_COLOR = 0xFEE75C
+
+    def __init__(self, bot: Red) -> None:
+        self.bot = bot
+
+        # IDENTICO ALL'ORIGINALE TaakoOfficial/TaakosCogs.
+        # Non cambiare identifier o nomi delle chiavi: servono per riusare
+        # esattamente la Config gia salvata dal cog originale.
+        self.config = Config.get_conf(
+            self,
+            identifier=2026051302,
+            force_registration=True,
+        )
+        self.config.register_guild(
+            enabled=False,
+            log_channel_id=None,
+            include_bots=False,
+            fake_age_hours=24,
+            invite_cache={},
+            inviters={},
+            members={},
+            unknown_joins=0,
+        )
+
+        self._locks: dict[int, asyncio.Lock] = {}
+        self._startup_task = asyncio.create_task(self._refresh_enabled_guilds())
+
+    async def cog_unload(self) -> None:
+        if self._startup_task and not self._startup_task.done():
+            self._startup_task.cancel()
+
+    async def red_delete_data_for_user(self, *, requester: str, user_id: int) -> None:
+        """Rimuove i record persistenti associati a un ID Discord."""
+        user_key = str(user_id)
+        all_guilds = await self.config.all_guilds()
+        for guild_id in all_guilds:
+            guild_conf = self.config.guild_from_id(guild_id)
+            async with guild_conf.inviters() as inviters:
+                inviters.pop(user_key, None)
+
+            async with guild_conf.members() as members:
+                members.pop(user_key, None)
+                for record in members.values():
+                    if str(record.get("inviter_id")) == user_key:
+                        record["inviter_id"] = None
+
+            async with guild_conf.invite_cache() as invite_cache:
+                for record in invite_cache.values():
+                    if str(record.get("inviter_id")) == user_key:
+                        record["inviter_id"] = None
+
+    def _guild_lock(self, guild_id: int) -> asyncio.Lock:
+        return self._locks.setdefault(guild_id, asyncio.Lock())
+
+    async def _refresh_enabled_guilds(self) -> None:
+        await self.bot.wait_until_ready()
+        all_guilds = await self.config.all_guilds()
+        for guild_id, settings in all_guilds.items():
+            if not settings.get("enabled"):
+                continue
+            guild = self.bot.get_guild(guild_id)
+            if guild is None:
+                continue
+            try:
+                await self._refresh_invite_cache(guild)
+            except Exception:
+                log.exception("Impossibile aggiornare la cache inviti del server %s", guild_id)
+
+    @staticmethod
+    def _now() -> datetime:
+        return datetime.now(timezone.utc)
+
+    @classmethod
+    def _now_ts(cls) -> float:
+        return cls._now().timestamp()
+
+    @staticmethod
+    def _count(value: int) -> str:
+        return f"{value:,}"
+
+    @staticmethod
+    def _format_ts(value: Any, style: str = "F") -> str:
+        if value in (None, ""):
+            return "Sconosciuto"
+        try:
+            timestamp = int(float(value))
+        except (TypeError, ValueError):
+            return "Sconosciuto"
+        return f"<t:{timestamp}:{style}>"
+
+    @staticmethod
+    def _user_ref(user_id: Any) -> str:
+        if user_id in (None, ""):
+            return "Sconosciuto"
+        try:
+            return f"<@{int(user_id)}>"
+        except (TypeError, ValueError):
+            return "Sconosciuto"
+
+    @staticmethod
+    def _invite_url(code: str | None) -> str:
+        if not code:
+            return "Sconosciuto"
+        return f"https://discord.gg/{code}"
+
+    @staticmethod
+    def _net_joins(stats: dict[str, Any]) -> int:
+        joins = int(stats.get("joins", 0))
+        leaves = int(stats.get("leaves", 0))
+        fake = int(stats.get("fake", 0))
+        return max(joins - leaves - fake, 0)
+
+    @classmethod
+    def _stats_line(cls, stats: dict[str, Any]) -> str:
+        joins = int(stats.get("joins", 0))
+        leaves = int(stats.get("leaves", 0))
+        fake = int(stats.get("fake", 0))
+        net = cls._net_joins(stats)
+        return (
+            f"Ingressi totali: **{cls._count(joins)}**\n"
+            f"Usciti: **{cls._count(leaves)}**\n"
+            f"Join fake: **{cls._count(fake)}**\n"
+            f"Ingressi validi netti: **{cls._count(net)}**"
+        )
+
+    @staticmethod
+    def _invite_to_record(invite: discord.Invite) -> dict[str, Any]:
+        channel = invite.channel
+        inviter = invite.inviter
+        created_at = invite.created_at
+        return {
+            "code": invite.code,
+            "uses": int(invite.uses or 0),
+            "inviter_id": inviter.id if inviter else None,
+            "channel_id": channel.id if channel else None,
+            "created_at": created_at.timestamp() if created_at else None,
+            "max_age": invite.max_age,
+            "max_uses": invite.max_uses,
+            "temporary": bool(invite.temporary),
+        }
+
+    @staticmethod
+    def _find_used_invite(
+        before_cache: InviteCache,
+        after_cache: InviteCache,
+    ) -> tuple[str | None, dict[str, Any] | None]:
+        candidates: list[tuple[int, int, str, dict[str, Any]]] = []
+        for code, after_record in after_cache.items():
+            before_record = before_cache.get(code, {})
+            before_uses = int(before_record.get("uses") or 0)
+            after_uses = int(after_record.get("uses") or 0)
+            if after_uses > before_uses:
+                candidates.append(
+                    (after_uses - before_uses, before_uses, code, after_record)
+                )
+
+        if not candidates:
+            return None, None
+
+        candidates.sort(
+            key=lambda item: (item[0], int(item[3].get("uses") or 0)),
+            reverse=True,
+        )
+        _delta, before_uses, code, record = candidates[0]
+        # Consuma un solo uso osservato per gestire meglio ingressi ravvicinati.
+        record["uses"] = before_uses + 1
+        return code, record
+
+    async def _fetch_invite_cache(self, guild: discord.Guild) -> InviteCache:
+        try:
+            invites = await guild.invites()
+        except discord.Forbidden as exc:
+            raise commands.CommandError(
+                "Non posso leggere gli inviti del server. Dammi **Gestisci server** e poi usa `[p]invitetracker refresh`."
+            ) from exc
+        except discord.HTTPException as exc:
+            raise commands.CommandError(
+                "Discord non ha restituito la lista degli inviti del server."
+            ) from exc
+
+        return {invite.code: self._invite_to_record(invite) for invite in invites}
+
+    async def _refresh_invite_cache(self, guild: discord.Guild) -> InviteCache:
+        async with self._guild_lock(guild.id):
+            invite_cache = await self._fetch_invite_cache(guild)
+            await self.config.guild(guild).invite_cache.set(invite_cache)
+            return invite_cache
+
+    @classmethod
+    def _is_fake_join(cls, member: discord.Member, fake_age_hours: int) -> bool:
+        if fake_age_hours <= 0:
+            return False
+        account_age_seconds = cls._now_ts() - member.created_at.timestamp()
+        return account_age_seconds < fake_age_hours * 3600
+
+    @staticmethod
+    def _empty_stats() -> StatsRecord:
+        return {"joins": 0, "leaves": 0, "fake": 0}
+
+    @classmethod
+    def _ensure_stats(
+        cls,
+        inviters: dict[str, StatsRecord],
+        inviter_id: Any,
+    ) -> StatsRecord:
+        key = str(inviter_id)
+        stats = inviters.setdefault(key, cls._empty_stats())
+        stats.setdefault("joins", 0)
+        stats.setdefault("leaves", 0)
+        stats.setdefault("fake", 0)
+        return stats
+
+    async def _increment_unknown_joins(self, guild: discord.Guild) -> None:
+        current = await self.config.guild(guild).unknown_joins()
+        await self.config.guild(guild).unknown_joins.set(int(current or 0) + 1)
+
+    async def _send_log(self, guild: discord.Guild, embed: discord.Embed) -> None:
+        channel_id = await self.config.guild(guild).log_channel_id()
+        if not channel_id:
+            return
+        channel = guild.get_channel(int(channel_id))
+        if not isinstance(channel, discord.TextChannel):
+            return
+        me = guild.me
+        if me is None:
+            return
+        permissions = channel.permissions_for(me)
+        if not permissions.send_messages or not permissions.embed_links:
+            return
+        try:
+            await channel.send(
+                embed=embed,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+        except discord.HTTPException:
+            log.exception("Impossibile inviare il log InviteTracker nel server %s", guild.id)
+
+    def _join_embed(
+        self,
+        member: discord.Member,
+        invite_code: str | None,
+        invite_record: dict[str, Any] | None,
+        is_fake: bool,
+    ) -> discord.Embed:
+        embed = discord.Embed(
+            title="Membro entrato",
+            description=f"{member.mention} e entrato nel server.",
+            color=self.FAKE_COLOR if is_fake else self.JOIN_COLOR,
+            timestamp=self._now(),
+        )
+        embed.set_thumbnail(url=member.display_avatar.url)
+
+        inviter_id = invite_record.get("inviter_id") if invite_record else None
+        invite_text = "Sconosciuto"
+        if invite_code:
+            invite_text = f"`{invite_code}`\n{self._invite_url(invite_code)}"
+        embed.add_field(name="Invito", value=invite_text, inline=True)
+        embed.add_field(name="Invitato da", value=self._user_ref(inviter_id), inline=True)
+        embed.add_field(
+            name="Account creato",
+            value=self._format_ts(member.created_at.timestamp(), "R"),
+            inline=True,
+        )
+
+        if invite_record:
+            channel_id = invite_record.get("channel_id")
+            channel_text = f"<#{channel_id}>" if channel_id else "Sconosciuto"
+            uses = int(invite_record.get("uses") or 0)
+            embed.add_field(name="Canale invito", value=channel_text, inline=True)
+            embed.add_field(name="Utilizzi invito", value=self._count(uses), inline=True)
+
+        embed.add_field(name="Join fake", value="Si" if is_fake else "No", inline=True)
+        embed.set_footer(text=f"ID utente: {member.id}")
+        return embed
+
+    def _leave_embed(self, member: discord.Member, record: MemberRecord) -> discord.Embed:
+        embed = discord.Embed(
+            title="Membro uscito",
+            description=f"{member} ha lasciato il server.",
+            color=self.LEAVE_COLOR,
+            timestamp=self._now(),
+        )
+        embed.set_thumbnail(url=member.display_avatar.url)
+        embed.add_field(
+            name="Invitato da",
+            value=self._user_ref(record.get("inviter_id")),
+            inline=True,
+        )
+
+        invite_code = record.get("invite_code")
+        invite_text = "Sconosciuto"
+        if invite_code:
+            invite_text = f"`{invite_code}`\n{self._invite_url(invite_code)}"
+        embed.add_field(name="Invito", value=invite_text, inline=True)
+        embed.add_field(
+            name="Entrato",
+            value=self._format_ts(record.get("joined_at"), "R"),
+            inline=True,
+        )
+        embed.add_field(
+            name="Join fake",
+            value="Si" if record.get("fake") else "No",
+            inline=True,
+        )
+        embed.set_footer(text=f"ID utente: {member.id}")
+        return embed
+
+    async def _record_join(self, member: discord.Member) -> None:
+        guild = member.guild
+        settings = await self.config.guild(guild).all()
+        if not settings.get("enabled"):
+            return
+        if member.bot and not settings.get("include_bots"):
+            return
+
+        invite_code: str | None = None
+        invite_record: dict[str, Any] | None = None
+
+        async with self._guild_lock(guild.id):
+            before_cache = await self.config.guild(guild).invite_cache()
+            try:
+                after_cache = await self._fetch_invite_cache(guild)
+            except commands.CommandError:
+                await self._increment_unknown_joins(guild)
+                log.warning(
+                    "Ricerca invito fallita per un nuovo membro nel server %s",
+                    guild.id,
+                )
+            else:
+                invite_code, invite_record = self._find_used_invite(
+                    before_cache,
+                    after_cache,
+                )
+                await self.config.guild(guild).invite_cache.set(after_cache)
+                if invite_record is None:
+                    await self._increment_unknown_joins(guild)
+
+        fake_age_hours = int(settings.get("fake_age_hours") or 0)
+        is_fake = self._is_fake_join(member, fake_age_hours)
+        inviter_id = invite_record.get("inviter_id") if invite_record else None
+
+        member_record: MemberRecord = {
+            "member_id": member.id,
+            "inviter_id": inviter_id,
+            "invite_code": invite_code,
+            "joined_at": self._now_ts(),
+            "left_at": None,
+            "fake": is_fake,
+        }
+
+        async with self.config.guild(guild).members() as members:
+            members[str(member.id)] = member_record
+
+        if inviter_id:
+            async with self.config.guild(guild).inviters() as inviters:
+                stats = self._ensure_stats(inviters, inviter_id)
+                stats["joins"] += 1
+                if is_fake:
+                    stats["fake"] += 1
+
+        await self._send_log(
+            guild,
+            self._join_embed(member, invite_code, invite_record, is_fake),
+        )
+
+    async def _record_leave(self, member: discord.Member) -> None:
+        guild = member.guild
+        settings = await self.config.guild(guild).all()
+        if not settings.get("enabled"):
+            return
+        if member.bot and not settings.get("include_bots"):
+            return
+
+        record: MemberRecord | None = None
+        async with self.config.guild(guild).members() as members:
+            raw_record = members.get(str(member.id))
+            if raw_record:
+                raw_record["left_at"] = self._now_ts()
+                record = dict(raw_record)
+
+        if not record:
+            return
+
+        inviter_id = record.get("inviter_id")
+        if inviter_id:
+            async with self.config.guild(guild).inviters() as inviters:
+                stats = self._ensure_stats(inviters, inviter_id)
+                stats["leaves"] += 1
+
+        await self._send_log(guild, self._leave_embed(member, record))
+
+    @commands.Cog.listener()
+    async def on_invite_create(self, invite: discord.Invite) -> None:
+        guild = invite.guild
+        if guild is None or await self.bot.cog_disabled_in_guild(self, guild):
+            return
+        if not await self.config.guild(guild).enabled():
+            return
+        async with self._guild_lock(guild.id), self.config.guild(guild).invite_cache() as invite_cache:
+            invite_cache[invite.code] = self._invite_to_record(invite)
+
+    @commands.Cog.listener()
+    async def on_invite_delete(self, invite: discord.Invite) -> None:
+        guild = invite.guild
+        if guild is None or await self.bot.cog_disabled_in_guild(self, guild):
+            return
+        if not await self.config.guild(guild).enabled():
+            return
+        async with self._guild_lock(guild.id), self.config.guild(guild).invite_cache() as invite_cache:
+            invite_cache.pop(invite.code, None)
+
+    @commands.Cog.listener()
+    async def on_member_join(self, member: discord.Member) -> None:
+        if await self.bot.cog_disabled_in_guild(self, member.guild):
+            return
+        try:
+            await self._record_join(member)
+        except Exception:
+            log.exception("Errore nel registrare un ingresso nel server %s", member.guild.id)
+
+    @commands.Cog.listener()
+    async def on_member_remove(self, member: discord.Member) -> None:
+        if await self.bot.cog_disabled_in_guild(self, member.guild):
+            return
+        try:
+            await self._record_leave(member)
+        except Exception:
+            log.exception("Errore nel registrare una uscita nel server %s", member.guild.id)
+
+    async def _send_settings(self, ctx: commands.Context) -> None:
+        assert ctx.guild is not None
+        settings = await self.config.guild(ctx.guild).all()
+        channel_id = settings.get("log_channel_id")
+        channel_text = f"<#{channel_id}>" if channel_id else "Non impostato"
+        invite_cache = settings.get("invite_cache") or {}
+        inviters = settings.get("inviters") or {}
+        members = settings.get("members") or {}
+
+        total_joins = sum(int(stats.get("joins", 0)) for stats in inviters.values())
+        total_leaves = sum(int(stats.get("leaves", 0)) for stats in inviters.values())
+        total_fake = sum(int(stats.get("fake", 0)) for stats in inviters.values())
+        active_tracked = sum(1 for record in members.values() if not record.get("left_at"))
+
+        embed = discord.Embed(
+            title="InviteTracker - Impostazioni",
+            color=self.DEFAULT_COLOR,
+            timestamp=self._now(),
+        )
+        prefix = ctx.clean_prefix
+        embed.add_field(
+            name="Stato",
+            value=(
+                f"Attivo: **{'Si' if settings.get('enabled') else 'No'}**\n"
+                f"Canale log: {channel_text}\n"
+                f"Includi bot: **{'Si' if settings.get('include_bots') else 'No'}**\n"
+                f"Soglia fake: **{int(settings.get('fake_age_hours') or 0)} ore**"
+            ),
+            inline=False,
+        )
+        if not settings.get("enabled") or not channel_id:
+            embed.add_field(
+                name="Per iniziare",
+                value=(
+                    f"1. Crea o scegli un canale log ingressi.\n"
+                    f"2. Usa `{prefix}invitetracker setup #join-logs`.\n"
+                    f"3. Assicurati che io abbia **Gestisci server** per leggere gli inviti.\n"
+                    f"4. Abilita l'intent **Server Members** per tracciare ingressi e uscite in modo affidabile."
+                ),
+                inline=False,
+            )
+        else:
+            embed.add_field(
+                name="Comandi utili",
+                value=(
+                    f"`{prefix}invites top 10` - classifica inviti\n"
+                    f"`{prefix}invites @membro` - statistiche inviti di un utente\n"
+                    f"`{prefix}invites source @membro` - mostra con quale invito e entrato\n"
+                    f"`{prefix}invitetracker refresh` - aggiorna la cache inviti"
+                ),
+                inline=False,
+            )
+
+        embed.add_field(
+            name="Dati tracciati",
+            value=(
+                f"Inviti in cache: **{self._count(len(invite_cache))}**\n"
+                f"Invitatori: **{self._count(len(inviters))}**\n"
+                f"Membri tracciati attivi: **{self._count(active_tracked)}**"
+            ),
+            inline=True,
+        )
+        embed.add_field(
+            name="Totali",
+            value=(
+                f"Ingressi: **{self._count(total_joins)}**\n"
+                f"Uscite: **{self._count(total_leaves)}**\n"
+                f"Join fake: **{self._count(total_fake)}**\n"
+                f"Join sconosciuti: **{self._count(int(settings.get('unknown_joins') or 0))}**"
+            ),
+            inline=True,
+        )
+        embed.add_field(
+            name="Come funziona",
+            value=(
+                "Discord non comunica direttamente al bot quale invito e stato usato. "
+                "InviteTracker confronta il numero di utilizzi degli inviti prima e dopo l'ingresso."
+            ),
+            inline=False,
+        )
+        embed.set_footer(text=f"InviteTracker {self.__version__}")
+        await ctx.send(embed=embed)
+
+    @commands.hybrid_group(
+        name="invitetracker",
+        aliases=["trackerinviti"],
+        invoke_without_command=True,
+    )
+    @commands.guild_only()
+    @commands.bot_has_permissions(embed_links=True)
+    async def invitetracker(self, ctx: commands.Context) -> None:
+        """Configura il tracciamento degli inviti del server."""
+        await self._send_settings(ctx)
+
+    @invitetracker.command(name="setup", aliases=["configura", "imposta"])
+    @commands.admin_or_permissions(manage_guild=True)
+    async def invitetracker_setup(
+        self,
+        ctx: commands.Context,
+        channel: discord.TextChannel | None = None,
+    ) -> None:
+        """Attiva InviteTracker, imposta il canale log e salva la cache corrente."""
+        assert ctx.guild is not None
+        if channel is None:
+            if not isinstance(ctx.channel, discord.TextChannel):
+                await ctx.send("Usa il comando in un canale testuale oppure specifica un canale.")
+                return
+            channel = ctx.channel
+
+        try:
+            invite_cache = await self._refresh_invite_cache(ctx.guild)
+        except commands.CommandError as error:
+            await ctx.send(str(error))
+            return
+
+        await self.config.guild(ctx.guild).log_channel_id.set(channel.id)
+        await self.config.guild(ctx.guild).enabled.set(True)
+        await ctx.send(
+            f"✅ InviteTracker attivato. I log verranno inviati in {channel.mention}. "
+            f"Inviti in cache: **{self._count(len(invite_cache))}**."
+        )
+
+    @invitetracker.command(name="enable", aliases=["attiva", "on"])
+    @commands.admin_or_permissions(manage_guild=True)
+    async def invitetracker_enable(
+        self,
+        ctx: commands.Context,
+        enabled: bool = True,
+    ) -> None:
+        """Attiva o disattiva il tracciamento inviti."""
+        assert ctx.guild is not None
+        if enabled:
+            try:
+                await self._refresh_invite_cache(ctx.guild)
+            except commands.CommandError as error:
+                await ctx.send(str(error))
+                return
+        await self.config.guild(ctx.guild).enabled.set(enabled)
+        await ctx.send(
+            f"InviteTracker ora e **{'attivo' if enabled else 'disattivato'}**."
+        )
+
+    @invitetracker.command(name="disable", aliases=["disattiva", "off"])
+    @commands.admin_or_permissions(manage_guild=True)
+    async def invitetracker_disable(self, ctx: commands.Context) -> None:
+        """Disattiva il tracciamento inviti."""
+        assert ctx.guild is not None
+        await self.config.guild(ctx.guild).enabled.set(False)
+        await ctx.send("⏸️ InviteTracker disattivato.")
+
+    @invitetracker.command(name="channel", aliases=["canale"])
+    @commands.admin_or_permissions(manage_guild=True)
+    async def invitetracker_channel(
+        self,
+        ctx: commands.Context,
+        channel: discord.TextChannel | None = None,
+    ) -> None:
+        """Imposta il canale dei log. Senza argomento usa il canale corrente."""
+        assert ctx.guild is not None
+        if channel is None:
+            if not isinstance(ctx.channel, discord.TextChannel):
+                await ctx.send("Usa il comando in un canale testuale oppure specifica un canale.")
+                return
+            channel = ctx.channel
+        await self.config.guild(ctx.guild).log_channel_id.set(channel.id)
+        await ctx.send(f"✅ I log degli inviti verranno inviati in {channel.mention}.")
+
+    @invitetracker.command(name="clearchannel", aliases=["rimuovicanale", "nokanale"])
+    @commands.admin_or_permissions(manage_guild=True)
+    async def invitetracker_clear_channel(self, ctx: commands.Context) -> None:
+        """Rimuove il canale dei log inviti."""
+        assert ctx.guild is not None
+        await self.config.guild(ctx.guild).log_channel_id.set(None)
+        await ctx.send("✅ Canale log inviti rimosso.")
+
+    @invitetracker.command(name="fakeage", aliases=["etafake", "sogliafake"])
+    @commands.admin_or_permissions(manage_guild=True)
+    async def invitetracker_fake_age(self, ctx: commands.Context, hours: int) -> None:
+        """Imposta in ore la soglia per considerare fake un nuovo account. 0 disattiva."""
+        assert ctx.guild is not None
+        if hours < 0:
+            await ctx.send("La soglia deve essere **0 o maggiore**.")
+            return
+        value = min(hours, 8760)
+        await self.config.guild(ctx.guild).fake_age_hours.set(value)
+        await ctx.send(f"✅ Soglia join fake impostata a **{value} ore**.")
+
+    @invitetracker.command(name="includebots", aliases=["includibot", "bot"])
+    @commands.admin_or_permissions(manage_guild=True)
+    async def invitetracker_include_bots(
+        self,
+        ctx: commands.Context,
+        include_bots: bool,
+    ) -> None:
+        """Sceglie se tracciare anche gli ingressi dei bot."""
+        assert ctx.guild is not None
+        await self.config.guild(ctx.guild).include_bots.set(include_bots)
+        await ctx.send(
+            f"Gli ingressi dei bot vengono ora **{'tracciati' if include_bots else 'ignorati'}**."
+        )
+
+    @invitetracker.command(name="refresh", aliases=["aggiorna", "ricarica"])
+    @commands.admin_or_permissions(manage_guild=True)
+    async def invitetracker_refresh(self, ctx: commands.Context) -> None:
+        """Aggiorna la cache degli inviti correnti da Discord."""
+        assert ctx.guild is not None
+        try:
+            invite_cache = await self._refresh_invite_cache(ctx.guild)
+        except commands.CommandError as error:
+            await ctx.send(str(error))
+            return
+        await ctx.send(
+            f"✅ Cache inviti aggiornata: **{self._count(len(invite_cache))}** inviti."
+        )
+
+    @invitetracker.command(name="resetstats", aliases=["resetstatistiche", "azzera"])
+    @commands.admin_or_permissions(manage_guild=True)
+    async def invitetracker_reset_stats(
+        self,
+        ctx: commands.Context,
+        confirmation: str = "",
+    ) -> None:
+        """Azzera tutte le statistiche. Usa `conferma` oppure `confirm`."""
+        assert ctx.guild is not None
+        if confirmation.lower() not in {"confirm", "conferma"}:
+            await ctx.send(
+                "Questo cancella tutte le statistiche inviti del server. Ripeti il comando aggiungendo `conferma`."
+            )
+            return
+
+        await self.config.guild(ctx.guild).inviters.set({})
+        await self.config.guild(ctx.guild).members.set({})
+        await self.config.guild(ctx.guild).unknown_joins.set(0)
+        try:
+            await self._refresh_invite_cache(ctx.guild)
+        except commands.CommandError as error:
+            await ctx.send(
+                f"Statistiche azzerate, ma non sono riuscito ad aggiornare la cache inviti: {error}"
+            )
+            return
+        await ctx.send("✅ Statistiche InviteTracker azzerate.")
+
+    @invitetracker.command(
+        name="settings",
+        aliases=["impostazioni", "status", "stato"],
+    )
+    @commands.bot_has_permissions(embed_links=True)
+    async def invitetracker_settings(self, ctx: commands.Context) -> None:
+        """Mostra tutte le impostazioni InviteTracker."""
+        await self._send_settings(ctx)
+
+    @invitetracker.command(name="version", aliases=["versione"])
+    async def invitetracker_version(self, ctx: commands.Context) -> None:
+        await ctx.send(f"InviteTracker **v{self.__version__}**")
+
+    @commands.hybrid_group(
+        name="invites",
+        aliases=["inv", "inviti"],
+        invoke_without_command=True,
+    )
+    @commands.guild_only()
+    @commands.bot_has_permissions(embed_links=True)
+    async def invites(
+        self,
+        ctx: commands.Context,
+        member: discord.Member | None = None,
+    ) -> None:
+        """Mostra le statistiche inviti tue o di un altro membro."""
+        assert ctx.guild is not None
+        member = member or ctx.author
+        inviters = await self.config.guild(ctx.guild).inviters()
+        stats = inviters.get(str(member.id), self._empty_stats())
+
+        embed = discord.Embed(
+            title=f"Statistiche inviti: {member.display_name}",
+            description=member.mention,
+            color=member.color if member.color.value else self.DEFAULT_COLOR,
+            timestamp=self._now(),
+        )
+        embed.set_thumbnail(url=member.display_avatar.url)
+        embed.add_field(name="Statistiche", value=self._stats_line(stats), inline=False)
+
+        members = await self.config.guild(ctx.guild).members()
+        active = sum(
+            1
+            for record in members.values()
+            if str(record.get("inviter_id")) == str(member.id)
+            and not record.get("left_at")
+        )
+        embed.add_field(
+            name="Membri attualmente tracciati",
+            value=self._count(active),
+            inline=True,
+        )
+        embed.set_footer(text=f"ID utente: {member.id}")
+        await ctx.send(embed=embed)
+
+    @invites.command(name="top", aliases=["leaderboard", "lb", "classifica"])
+    @commands.guild_only()
+    @commands.bot_has_permissions(embed_links=True)
+    async def invites_top(self, ctx: commands.Context, limit: int = 10) -> None:
+        """Mostra la classifica degli invitatori."""
+        assert ctx.guild is not None
+        limit = max(1, min(limit, 25))
+        inviters = await self.config.guild(ctx.guild).inviters()
+        if not inviters:
+            await ctx.send("Non sono ancora state registrate statistiche inviti.")
+            return
+
+        ranked = sorted(
+            inviters.items(),
+            key=lambda item: (
+                self._net_joins(item[1]),
+                int(item[1].get("joins", 0)),
+                -int(item[1].get("leaves", 0)),
+            ),
+            reverse=True,
+        )
+        lines = []
+        for index, (user_id, stats) in enumerate(ranked[:limit], start=1):
+            lines.append(
+                f"**{index}.** {self._user_ref(user_id)} - "
+                f"**{self._count(self._net_joins(stats))}** netti "
+                f"({self._count(int(stats.get('joins', 0)))} entrati, "
+                f"{self._count(int(stats.get('leaves', 0)))} usciti, "
+                f"{self._count(int(stats.get('fake', 0)))} fake)"
+            )
+
+        embed = discord.Embed(
+            title="Classifica inviti",
+            description="\n".join(lines),
+            color=self.DEFAULT_COLOR,
+            timestamp=self._now(),
+        )
+        await ctx.send(embed=embed)
+
+    @invites.command(name="source", aliases=["joined", "fonte", "provenienza"])
+    @commands.guild_only()
+    @commands.bot_has_permissions(embed_links=True)
+    async def invites_source(
+        self,
+        ctx: commands.Context,
+        member: discord.Member,
+    ) -> None:
+        """Mostra con quale invito e entrato un membro."""
+        assert ctx.guild is not None
+        members = await self.config.guild(ctx.guild).members()
+        record = members.get(str(member.id))
+        if not record:
+            await ctx.send("Non ho una sorgente invito tracciata per quel membro.")
+            return
+
+        invite_code = record.get("invite_code")
+        invite_text = "Sconosciuto"
+        if invite_code:
+            invite_text = f"`{invite_code}`\n{self._invite_url(invite_code)}"
+
+        embed = discord.Embed(
+            title=f"Sorgente invito: {member.display_name}",
+            description=member.mention,
+            color=member.color if member.color.value else self.DEFAULT_COLOR,
+            timestamp=self._now(),
+        )
+        embed.set_thumbnail(url=member.display_avatar.url)
+        embed.add_field(
+            name="Invitato da",
+            value=self._user_ref(record.get("inviter_id")),
+            inline=True,
+        )
+        embed.add_field(name="Invito", value=invite_text, inline=True)
+        embed.add_field(
+            name="Entrato",
+            value=self._format_ts(record.get("joined_at"), "F"),
+            inline=True,
+        )
+        embed.add_field(
+            name="Uscito",
+            value=self._format_ts(record.get("left_at"), "R"),
+            inline=True,
+        )
+        embed.add_field(
+            name="Join fake",
+            value="Si" if record.get("fake") else "No",
+            inline=True,
+        )
+        embed.set_footer(text=f"ID utente: {member.id}")
+        await ctx.send(embed=embed)
+
+    @invites.command(name="joinedby", aliases=["invitati", "invitati-da"])
+    @commands.guild_only()
+    async def invites_joined_by(
+        self,
+        ctx: commands.Context,
+        inviter: discord.Member,
+        limit: int = 20,
+    ) -> None:
+        """Elenca i membri attuali tracciati come invitati da un utente."""
+        assert ctx.guild is not None
+        limit = max(1, min(limit, 50))
+        members = await self.config.guild(ctx.guild).members()
+        records = [
+            record
+            for record in members.values()
+            if str(record.get("inviter_id")) == str(inviter.id)
+            and not record.get("left_at")
+        ]
+        records.sort(
+            key=lambda record: float(record.get("joined_at") or 0),
+            reverse=True,
+        )
+        if not records:
+            await ctx.send(
+                f"Nessun membro attualmente tracciato risulta invitato da {inviter.mention}."
+            )
+            return
+
+        lines = []
+        for record in records[:limit]:
+            member_id = record.get("member_id")
+            invite_code = record.get("invite_code") or "sconosciuto"
+            fake_text = " fake" if record.get("fake") else ""
+            lines.append(
+                f"{self._user_ref(member_id)} - `{invite_code}` - "
+                f"{self._format_ts(record.get('joined_at'), 'R')}{fake_text}"
+            )
+
+        header = (
+            f"Membri attualmente tracciati invitati da {inviter} "
+            f"({len(records)} totali):"
+        )
+        for page in pagify("\n".join(lines), page_length=1800):
+            await ctx.send(box(f"{header}\n\n{page}"))
+
+    @invites.command(name="export", aliases=["esporta"])
+    @commands.guild_only()
+    @commands.admin_or_permissions(manage_guild=True)
+    @commands.bot_has_permissions(attach_files=True)
+    async def invites_export(self, ctx: commands.Context) -> None:
+        """Esporta i record membri/inviti in CSV."""
+        assert ctx.guild is not None
+        members = await self.config.guild(ctx.guild).members()
+        if not members:
+            await ctx.send("Non ci sono ancora record membri/inviti da esportare.")
+            return
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+        # Intestazioni lasciate identiche all'originale per compatibilita dei CSV.
+        writer.writerow(
+            ["member_id", "inviter_id", "invite_code", "joined_at", "left_at", "fake"]
+        )
+        for record in members.values():
+            writer.writerow(
+                [
+                    record.get("member_id"),
+                    record.get("inviter_id"),
+                    record.get("invite_code"),
+                    self._format_export_time(record.get("joined_at")),
+                    self._format_export_time(record.get("left_at")),
+                    "yes" if record.get("fake") else "no",
+                ]
+            )
+
+        data = output.getvalue().encode("utf-8")
+        file = discord.File(io.BytesIO(data), filename=f"invites-{ctx.guild.id}.csv")
+        await ctx.send("Esportazione record InviteTracker:", file=file)
+
+    @staticmethod
+    def _format_export_time(value: Any) -> str:
+        if value in (None, ""):
+            return ""
+        try:
+            return datetime.fromtimestamp(float(value), tz=timezone.utc).isoformat()
+        except (TypeError, ValueError, OSError):
+            return ""
