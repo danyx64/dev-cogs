@@ -1,0 +1,13 @@
+{
+  "author": ["adminelevation", "danyx64"],
+  "name": "adaptiveslowmode",
+  "install_msg": "Slowmode adattivo installato. Mantiene la stessa cartella, classe, identifier Config e chiavi del cog BeeHiveSafety/BeeHiveCogs, quindi puo riutilizzare la configurazione gia salvata. Usa `[p]adaptiveslowmode settings` per controllare lo stato.",
+  "short": "Slowmode adattivo per i canali, tradotto in italiano.",
+  "description": "Regola automaticamente lo slowmode dei canali monitorati in incrementi di 1 secondo in base all'attivita, con statistiche ogni 5 minuti, log e pulsanti manuali. Compatibile con la Config salvata dal cog adaptiveslowmode di BeeHiveSafety/BeeHiveCogs.",
+  "tags": ["moderation", "slowmode", "utility", "auto", "italiano"],
+  "requirements": [],
+  "hidden": false,
+  "disabled": false,
+  "min_bot_version": "3.5.0",
+  "end_user_data_statement": "Questo cog salva solo impostazioni a livello server e ID di canali. Non memorizza in modo persistente contenuti dei messaggi o dati personali degli utenti."
+}
