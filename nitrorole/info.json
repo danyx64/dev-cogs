@@ -1,0 +1,25 @@
+{
+  "name": "NitroRole",
+  "short": "Dai il benvenuto ai nuovi booster Nitro e/o assegna loro un ruolo speciale.",
+  "description": "Versione italiana compatibile con il NitroRole di Jackenmen/JackCogs. Mantiene la stessa cartella, classe, Config identifier e chiavi persistenti per riutilizzare le impostazioni gia salvate.",
+  "end_user_data_statement": "Questo cog non salva in modo persistente dati o metadati personali degli utenti. Gli ID Discord possono comparire nei log solo in caso di errore, come nel cog originale.",
+  "install_msg": "NitroRole installato. Questa versione mantiene la compatibilita con la Config del NitroRole originale di Jackenmen/JackCogs. Usa `[p]nitrorole status` per verificare ruolo, canale, template e impostazioni recuperate.",
+  "author": [
+    "Jakub Kuczys (https://github.com/Jackenmen)",
+    "danyx64 - adattamento italiano"
+  ],
+  "required_cogs": {},
+  "requirements": [],
+  "tags": [
+    "announce",
+    "booster",
+    "nitro",
+    "nitrorole",
+    "welcome",
+    "italiano"
+  ],
+  "min_bot_version": "3.5.0",
+  "hidden": false,
+  "disabled": false,
+  "type": "COG"
+}
