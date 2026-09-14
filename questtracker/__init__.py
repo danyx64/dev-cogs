@@ -1,5 +1,5 @@
 from .v2 import install_v2_commands
-from .v22 import QuestTracker
+from .v23 import QuestTracker
 
 install_v2_commands()
 
