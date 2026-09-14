@@ -1,13 +1,12 @@
 # Una divinita' / riferimento religioso per riga.
 # SwearJar conta solo se nello stesso messaggio trova anche una voce di parolacce.txt.
+# Termini ambigui come "maria" e "signore" non sono inclusi da soli per evitare falsi positivi.
 dio
 gesu
 gesu cristo
 cristo
 madonna
 allah
-signore
 padre eterno
 spirito santo
 vergine maria
-maria
