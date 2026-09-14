@@ -1,0 +1,353 @@
+name: Localize Tickets with offline Italian model
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/run_tickets_it_model.yml
+
+permissions:
+  contents: write
+
+jobs:
+  localize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install translation stack
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check polib transformers sentencepiece sacremoses
+          python -m pip install --disable-pip-version-check torch --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Generate complete Italian localization
+        shell: bash
+        run: |
+          python <<'PY'
+          from __future__ import annotations
+
+          import re
+          from pathlib import Path
+
+          import polib
+          from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+
+          MODEL = "Helsinki-NLP/opus-mt-en-it"
+          CATALOGS = [
+              Path("tickets/locales/messages.pot"),
+              Path("tickets/commands/locales/messages.pot"),
+              Path("tickets/common/locales/messages.pot"),
+          ]
+
+          MANUAL = {
+              "Ticket Setup Guide": "Guida alla configurazione dei ticket",
+              "Base support ticket settings": "Impostazioni di base del sistema ticket",
+              "Step 1": "Passaggio 1",
+              "Step 2": "Passaggio 2",
+              "Step 3": "Passaggio 3",
+              "Button Text": "Testo del pulsante",
+              "Button Color": "Colore del pulsante",
+              "Button Emoji": "Emoji del pulsante",
+              "Thread Tickets": "Ticket in thread",
+              "Ticket Messages": "Messaggi del ticket",
+              "Remove/View Ticket Messages": "Rimuovi/Visualizza messaggi del ticket",
+              "Ticket Channel Name": "Nome del canale ticket",
+              "Log Channel": "Canale log",
+              "Ticket System Suspended": "Sistema ticket sospeso",
+              "Outside Working Hours": "Fuori dall'orario di supporto",
+              "Working Hours": "Orari di supporto",
+              "You are not allowed to interact with this button.": "Non puoi interagire con questo pulsante.",
+              "N/A": "N/D",
+              "All Time": "Da sempre",
+              "Since": "Da",
+              "< 1 minute": "< 1 minuto",
+              "less than a minute": "meno di un minuto",
+              "{} minute": "{} minuto",
+              "{} minutes": "{} minuti",
+              "{} hour": "{} ora",
+              "{} hours": "{} ore",
+              "{} day": "{} giorno",
+              "{} days": "{} giorni",
+              "Open a Ticket": "Apri un ticket",
+              "Close Ticket": "Chiudi ticket",
+              "Claim Ticket": "Prendi in carico",
+              "Join Ticket": "Entra nel ticket",
+              "Ticket Closed": "Ticket chiuso",
+              "Ticket Opened": "Ticket aperto",
+              "Ticket Overview": "Panoramica ticket",
+              "Active Tickets": "Ticket attivi",
+              "Closing...": "Chiusura in corso...",
+              "Archiving Ticket...": "Archiviazione ticket...",
+              "Yes": "Sì",
+              "No": "No",
+              "Cancel": "Annulla",
+              "cancel": "annulla",
+              "Confirm": "Conferma",
+              "Close": "Chiudi",
+              "Back": "Indietro",
+              "Next": "Avanti",
+              "Previous": "Precedente",
+              "Unanswered": "Senza risposta",
+              "Submission Info": "Informazioni inviate",
+          }
+
+          POST = [
+              (r"\bbiglietti\b", "ticket"),
+              (r"\bbiglietto\b", "ticket"),
+              (r"\bBiglietti\b", "Ticket"),
+              (r"\bBiglietto\b", "Ticket"),
+              (r"\bgilda\b", "server"),
+              (r"\bGilda\b", "Server"),
+              (r"\bgilde\b", "server"),
+              (r"\bGilde\b", "Server"),
+              (r"\bfili\b", "thread"),
+              (r"\bfilo\b", "thread"),
+              (r"\bFili\b", "Thread"),
+              (r"\bFilo\b", "Thread"),
+          ]
+
+          PERCENT = r"%(?:\([^)]+\))?[#0\- +]?[0-9]*(?:\.[0-9]+)?[diouxXeEfFgGcrs%]"
+          TOKEN_RE = re.compile(
+              r"("
+              r"```.*?```|`[^`]*`|"
+              r"https?://[^\s]+|"
+              r"<t:[^>]+>|<@!?\d+>|<@&\d+>|<#\d+>|"
+              r"\{[^{}]*\}|" + PERCENT + r"|"
+              r"\[[^\]\n]+\]|"
+              r"<[^<>\n]+>"
+              r")",
+              re.DOTALL,
+          )
+
+          tokenizer = AutoTokenizer.from_pretrained(MODEL)
+          model = AutoModelForSeq2SeqLM.from_pretrained(MODEL)
+
+          def protect(text: str):
+              parts = TOKEN_RE.split(text)
+              tokens = [part for i, part in enumerate(parts) if i % 2 == 1]
+              marked = text
+              mapping = {}
+              for i, token in enumerate(tokens):
+                  marker = f"ZXQPH{i}QXZ"
+                  mapping[marker] = token
+                  marked = marked.replace(token, marker, 1)
+              return marked, mapping, parts
+
+          # Translate by line to preserve layout, while batching all unique model inputs.
+          all_inputs: set[str] = set()
+          prepared: dict[str, list[tuple[str, dict[str, str], list[str]]]] = {}
+          all_sources = []
+          for pot_path in CATALOGS:
+              pot = polib.pofile(str(pot_path), encoding="utf-8")
+              for entry in pot:
+                  if entry.obsolete:
+                      continue
+                  all_sources.append(entry.msgid)
+                  if entry.msgid_plural:
+                      all_sources.append(entry.msgid_plural)
+
+          for source in all_sources:
+              if source in prepared or source in MANUAL:
+                  continue
+              line_items = []
+              for line in source.splitlines(keepends=True):
+                  ending = "\n" if line.endswith("\n") else ""
+                  body = line[:-1] if ending else line
+                  if not body.strip() or not re.search(r"[A-Za-z]", body):
+                      line_items.append((body + ending, {}, [body + ending]))
+                      continue
+                  marked, mapping, parts = protect(body)
+                  all_inputs.add(marked)
+                  # Preload segment fallbacks too.
+                  for i, part in enumerate(parts):
+                      if i % 2 == 0 and re.search(r"[A-Za-z]", part):
+                          all_inputs.add(part)
+                  line_items.append((marked + ending, mapping, parts))
+              prepared[source] = line_items
+
+          inputs = sorted(all_inputs)
+          translations: dict[str, str] = {}
+          batch_size = 24
+          for start in range(0, len(inputs), batch_size):
+              batch = inputs[start:start + batch_size]
+              enc = tokenizer(batch, return_tensors="pt", padding=True, truncation=True, max_length=512)
+              generated = model.generate(**enc, max_length=512, num_beams=4)
+              outs = tokenizer.batch_decode(generated, skip_special_tokens=True)
+              translations.update(zip(batch, outs))
+              print(f"Translated {min(start + batch_size, len(inputs))}/{len(inputs)} model segments")
+
+          def translate_source(source: str) -> str:
+              if source in MANUAL:
+                  return MANUAL[source]
+              out_lines = []
+              for marked_with_end, mapping, parts in prepared.get(source, []):
+                  ending = "\n" if marked_with_end.endswith("\n") else ""
+                  marked = marked_with_end[:-1] if ending else marked_with_end
+                  if not mapping and marked not in translations:
+                      out_lines.append(marked + ending)
+                      continue
+                  translated = translations.get(marked, marked)
+                  if mapping and all(marker in translated for marker in mapping):
+                      for marker, token in mapping.items():
+                          translated = translated.replace(marker, token)
+                  elif mapping:
+                      translated = "".join(
+                          part if i % 2 else translations.get(part, part)
+                          for i, part in enumerate(parts)
+                      )
+                  for pattern, replacement in POST:
+                      translated = re.sub(pattern, replacement, translated)
+                  out_lines.append(translated + ending)
+              result = "".join(out_lines)
+              return result if result else source
+
+          def signature(text: str):
+              return (
+                  sorted(re.findall(r"\{[^{}]*\}", text)),
+                  sorted(re.findall(r"<t:[^>]+>|<@!?\d+>|<@&\d+>|<#\d+>|<[^<>\n]+>", text)),
+                  sorted(re.findall(PERCENT, text)),
+              )
+
+          for pot_path in CATALOGS:
+              pot = polib.pofile(str(pot_path), encoding="utf-8")
+              po = polib.POFile()
+              po.metadata = dict(pot.metadata)
+              po.metadata.update({
+                  "Project-Id-Version": "vrt-cogs Tickets Italian",
+                  "Language": "it_IT",
+                  "Language-Team": "Italian",
+                  "Last-Translator": "danyx64 / Italian localization",
+                  "Content-Type": "text/plain; charset=UTF-8",
+                  "Content-Transfer-Encoding": "8bit",
+                  "Plural-Forms": "nplurals=2; plural=(n != 1);",
+              })
+              changed = 0
+              for entry in pot:
+                  new = polib.POEntry(
+                      msgid=entry.msgid,
+                      msgid_plural=entry.msgid_plural,
+                      occurrences=entry.occurrences,
+                      comment=entry.comment,
+                      tcomment=entry.tcomment,
+                      flags=list(entry.flags),
+                      msgctxt=entry.msgctxt,
+                  )
+                  if entry.obsolete:
+                      new.obsolete = True
+                      po.append(new)
+                      continue
+                  pairs = []
+                  if entry.msgid_plural:
+                      one = translate_source(entry.msgid)
+                      many = translate_source(entry.msgid_plural)
+                      new.msgstr_plural[0] = one
+                      new.msgstr_plural[1] = many
+                      pairs = [(entry.msgid, one), (entry.msgid_plural, many)]
+                  else:
+                      new.msgstr = translate_source(entry.msgid)
+                      pairs = [(entry.msgid, new.msgstr)]
+                  for src, dst in pairs:
+                      if src and not dst:
+                          raise RuntimeError(f"Empty translation: {src!r}")
+                      if signature(src) != signature(dst):
+                          raise RuntimeError(f"Placeholder mismatch: {src!r} -> {dst!r}")
+                      if src != dst:
+                          changed += 1
+                  po.append(new)
+              out_path = pot_path.with_name("it-IT.po")
+              po.save(str(out_path))
+              test_mo = out_path.with_suffix(".mo")
+              po.save_as_mofile(str(test_mo))
+              test_mo.unlink()
+              print(f"{out_path}: {changed}/{len(po)} entries localized")
+          PY
+
+      - name: Apply safe direct Italian UI text
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          p = Path("tickets/tickets.py")
+          s = p.read_text(encoding="utf-8")
+          s = s.replace(
+              'info = f"{helpcmd}\\nCog Version: {self.__version__}\\nAuthor: {self.__author__}\\n"',
+              'info = f"{helpcmd}\\nVersione Cog: {self.__version__}\\nAutore: {self.__author__}\\n"',
+          )
+          p.write_text(s, encoding="utf-8")
+
+          p = Path("tickets/commands/analytics.py")
+          s = p.read_text(encoding="utf-8")
+          replacements = {
+              '0: "Monday"': '0: "Lunedì"',
+              '1: "Tuesday"': '1: "Martedì"',
+              '2: "Wednesday"': '2: "Mercoledì"',
+              '3: "Thursday"': '3: "Giovedì"',
+              '4: "Friday"': '4: "Venerdì"',
+              '5: "Saturday"': '5: "Sabato"',
+              '6: "Sunday"': '6: "Domenica"',
+          }
+          for a, b in replacements.items():
+              s = s.replace(a, b)
+          p.write_text(s, encoding="utf-8")
+          PY
+
+      - name: Validate exact saved configuration compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m compileall -q tickets
+          python <<'PY'
+          from pathlib import Path
+          import polib
+
+          source = Path("tickets/tickets.py").read_text(encoding="utf-8")
+          assert "Config.get_conf(self, 117117, force_registration=True)" in source
+          assert "self.config.register_global(db={})" in source
+          assert '__version__ = "3.5.1"' in source
+          assert "class Tickets(" in source
+
+          init = Path("tickets/__init__.py").read_text(encoding="utf-8")
+          assert "from .tickets import Tickets" in init
+          assert "cog = Tickets(bot)" in init
+
+          for path in [
+              "tickets/locales/it-IT.po",
+              "tickets/commands/locales/it-IT.po",
+              "tickets/common/locales/it-IT.po",
+          ]:
+              po = polib.pofile(path, encoding="utf-8")
+              assert po.metadata.get("Language") == "it_IT"
+              for e in po:
+                  if e.obsolete:
+                      continue
+                  if e.msgid_plural:
+                      assert e.msgstr_plural.get(0) and e.msgstr_plural.get(1)
+                  elif e.msgid:
+                      assert e.msgstr
+          PY
+
+          curl -fsSL "https://raw.githubusercontent.com/vertyco/vrt-cogs/f905b5a1d28cebeb7b165848a46b9114b85884ad/tickets/common/models.py" -o /tmp/upstream_models.py
+          cmp /tmp/upstream_models.py tickets/common/models.py
+          git diff --check
+
+      - name: Commit localized cog
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "DanyX64"
+          git config user.email "124602162+danyx64@users.noreply.github.com"
+          git add tickets
+          if ! git diff --cached --quiet; then
+            git commit -m "Complete Italian Tickets localization"
+            git push
+          fi
