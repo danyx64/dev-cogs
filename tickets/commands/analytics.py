@@ -21,13 +21,13 @@ _ = Translator("TicketsAnalytics", __file__)
 
 # Day name mapping for display
 DAY_NAMES = {
-    0: "Monday",
-    1: "Tuesday",
-    2: "Wednesday",
-    3: "Thursday",
-    4: "Friday",
-    5: "Saturday",
-    6: "Sunday",
+    0: "Lunedì",
+    1: "Martedì",
+    2: "Mercoledì",
+    3: "Giovedì",
+    4: "Venerdì",
+    5: "Sabato",
+    6: "Domenica",
 }
 
 
