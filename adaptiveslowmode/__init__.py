@@ -1,4 +1,4 @@
-from .adaptiveslowmode import AdaptiveSlowmode
+from .v101 import AdaptiveSlowmode
 
 
 async def setup(bot):
