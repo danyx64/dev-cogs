@@ -1,0 +1,251 @@
+name: Refine Tickets Italian Localization
+
+on:
+  push:
+    paths:
+      - '.github/workflows/refine_tickets_it.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  refine:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install localization tooling
+        run: python -m pip install polib deep-translator
+
+      - name: Rebuild and audit Italian catalogs
+        shell: bash
+        run: |
+          cat > /tmp/refine_tickets_it.py <<'PY'
+          import ast
+          import re
+          import time
+          from pathlib import Path
+
+          import polib
+          from deep_translator import GoogleTranslator
+
+          translator = GoogleTranslator(source='en', target='it')
+          cache = {}
+
+          # Everything in this expression is formatting/data and must remain byte-for-byte unchanged.
+          protected = re.compile(
+              r'(https?://[^\s<>]+|'
+              r'`[^`\n]*`|`|'
+              r'\{[^{}\n]+\}|\{\}|'
+              r'\[[^\]\n]+\]|'
+              r'<[^<>\n]+>|'
+              r'%\([^)]+\)[#0\- +]?[0-9]*(?:\.[0-9]+)?[a-zA-Z]|'
+              r'%(?:[#0\- +]?[0-9]*(?:\.[0-9]+)?)?[a-zA-Z]|'
+              r'\*\*|__|~~|\|\||\n)'
+          )
+
+          def preserve_space_translate(text: str) -> str:
+              if not text or not text.strip():
+                  return text
+              m = re.match(r'^(\s*)(.*?)(\s*)$', text, flags=re.S)
+              lead, core, tail = m.groups()
+              if not core:
+                  return text
+              if core in cache:
+                  translated = cache[core]
+              else:
+                  try:
+                      translated = translator.translate(core)
+                      time.sleep(0.03)
+                  except Exception as exc:
+                      print(f'Google translation failed for {core!r}: {exc}')
+                      translated = core
+                  # Discord terminology: prefer the terms Italian communities actually use.
+                  replacements = [
+                      (r'\bbiglietti\b', 'ticket'),
+                      (r'\bbiglietto\b', 'ticket'),
+                      (r'\bgilde\b', 'server'),
+                      (r'\bgilda\b', 'server'),
+                      (r'\bfili\b', 'thread'),
+                      (r'\bfilo\b', 'thread'),
+                  ]
+                  for pattern, replacement in replacements:
+                      translated = re.sub(pattern, replacement, translated, flags=re.I)
+                  cache[core] = translated
+              return lead + translated + tail
+
+          def translate_text(text: str) -> str:
+              if not text:
+                  return text
+              out = []
+              pos = 0
+              for match in protected.finditer(text):
+                  out.append(preserve_space_translate(text[pos:match.start()]))
+                  out.append(match.group(0))
+                  pos = match.end()
+              out.append(preserve_space_translate(text[pos:]))
+              return ''.join(out)
+
+          def signature(text: str):
+              return (
+                  tuple(re.findall(r'\{[^{}\n]*\}', text)),
+                  tuple(re.findall(r'<[^<>\n]+>', text)),
+                  tuple(re.findall(r'\[[^\]\n]+\]', text)),
+                  tuple(re.findall(r'%\([^)]+\)[#0\- +]?[0-9]*(?:\.[0-9]+)?[a-zA-Z]', text)),
+                  text.count('`'),
+                  text.count('\n'),
+              )
+
+          def extract_strings(paths):
+              found = set()
+              for path in paths:
+                  try:
+                      tree = ast.parse(path.read_text(encoding='utf-8'))
+                  except Exception as exc:
+                      print(f'AST parse skipped for {path}: {exc}')
+                      continue
+                  for node in ast.walk(tree):
+                      if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == '_' and node.args:
+                          arg = node.args[0]
+                          if isinstance(arg, ast.Constant) and isinstance(arg.value, str) and arg.value:
+                              found.add(arg.value)
+                      if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                          doc = ast.get_docstring(node, clean=False)
+                          if doc:
+                              found.add(doc)
+              return found
+
+          groups = [
+              (Path('tickets/locales/messages.pot'), Path('tickets/locales/it-IT.po'), [Path('tickets/tickets.py')]),
+              (
+                  Path('tickets/commands/locales/messages.pot'),
+                  Path('tickets/commands/locales/it-IT.po'),
+                  sorted(Path('tickets/commands').glob('*.py')),
+              ),
+              (
+                  Path('tickets/common/locales/messages.pot'),
+                  Path('tickets/common/locales/it-IT.po'),
+                  sorted(Path('tickets/common').glob('*.py')),
+              ),
+          ]
+
+          total_added = 0
+          for pot_path, it_path, source_paths in groups:
+              pot = polib.pofile(str(pot_path))
+              old = polib.pofile(str(it_path)) if it_path.exists() else polib.POFile()
+              old_map = {e.msgid: e for e in old if e.msgid}
+
+              known = {e.msgid for e in pot if e.msgid}
+              extras = sorted(extract_strings(source_paths) - known)
+              for msgid in extras:
+                  pot.append(polib.POEntry(msgid=msgid, msgstr=''))
+              total_added += len(extras)
+
+              pot.metadata = dict(pot.metadata)
+              pot.metadata.update({
+                  'Project-Id-Version': 'vrt-cogs Tickets Italian',
+                  'PO-Revision-Date': '2026-09-14 00:00+0000',
+                  'Last-Translator': 'danyx64 / Italian localization audit',
+                  'Language-Team': 'Italian',
+                  'Language': 'it_IT',
+                  'MIME-Version': '1.0',
+                  'Content-Type': 'text/plain; charset=UTF-8',
+                  'Content-Transfer-Encoding': '8bit',
+                  'Plural-Forms': 'nplurals=2; plural=(n != 1);',
+                  'X-Crowdin-Language': 'it',
+              })
+
+              failures = []
+              for entry in pot:
+                  if entry.obsolete or not entry.msgid:
+                      continue
+                  if entry.msgid_plural:
+                      singular = translate_text(entry.msgid)
+                      plural = translate_text(entry.msgid_plural)
+                      if signature(singular) != signature(entry.msgid):
+                          singular = old_map.get(entry.msgid).msgstr_plural.get(0, entry.msgid) if entry.msgid in old_map else entry.msgid
+                      if signature(plural) != signature(entry.msgid_plural):
+                          plural = old_map.get(entry.msgid).msgstr_plural.get(1, entry.msgid_plural) if entry.msgid in old_map else entry.msgid_plural
+                      entry.msgstr_plural[0] = singular
+                      entry.msgstr_plural[1] = plural
+                  else:
+                      translated = translate_text(entry.msgid)
+                      if signature(translated) != signature(entry.msgid):
+                          previous = old_map.get(entry.msgid)
+                          translated = previous.msgstr if previous and previous.msgstr and signature(previous.msgstr) == signature(entry.msgid) else entry.msgid
+                          failures.append(entry.msgid)
+                      entry.msgstr = translated
+
+              # Final hard validation: no broken formatting tokens are allowed into the repo.
+              for entry in pot:
+                  if entry.obsolete or not entry.msgid:
+                      continue
+                  if entry.msgid_plural:
+                      assert entry.msgstr_plural.get(0), f'Empty singular translation: {entry.msgid}'
+                      assert entry.msgstr_plural.get(1), f'Empty plural translation: {entry.msgid}'
+                      assert signature(entry.msgstr_plural[0]) == signature(entry.msgid)
+                      assert signature(entry.msgstr_plural[1]) == signature(entry.msgid_plural)
+                  else:
+                      assert entry.msgstr, f'Empty translation: {entry.msgid}'
+                      assert signature(entry.msgstr) == signature(entry.msgid), entry.msgid
+
+              pot.save(str(it_path))
+              print(f'{it_path}: {len(pot)} entries, {len(extras)} missing source strings added, {len(failures)} formatting fallbacks')
+
+          print(f'Total extra translatable source strings added: {total_added}')
+          PY
+          python /tmp/refine_tickets_it.py
+
+      - name: Apply safe Italian UI constants
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          # These strings are user-visible but are not passed through Red's Translator.
+          # Only presentation strings are changed; Config IDs, schemas, defaults and migrations are untouched.
+          path = Path('tickets/commands/analytics.py')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace('0: "Monday",', '0: "Lunedì",')
+          text = text.replace('1: "Tuesday",', '1: "Martedì",')
+          text = text.replace('2: "Wednesday",', '2: "Mercoledì",')
+          text = text.replace('3: "Thursday",', '3: "Giovedì",')
+          text = text.replace('4: "Friday",', '4: "Venerdì",')
+          text = text.replace('5: "Saturday",', '5: "Sabato",')
+          text = text.replace('6: "Sunday",', '6: "Domenica",')
+          path.write_text(text, encoding='utf-8')
+
+          path = Path('tickets/tickets.py')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace('Cog Version: {self.__version__}', 'Versione Cog: {self.__version__}')
+          text = text.replace('Author: {self.__author__}', 'Autore: {self.__author__}')
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Validate code and exact Config compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F 'class Tickets(' tickets/tickets.py
+          grep -F 'Config.get_conf(self, 117117, force_registration=True)' tickets/tickets.py
+          grep -F 'self.config.register_global(db={})' tickets/tickets.py
+          grep -F 'async def migrate_from_old_config(config: Config)' tickets/common/models.py
+          grep -F 'return await run_migrations(new_data, config)' tickets/common/models.py
+          python -m compileall -q tickets
+
+      - name: Commit audited Italian localization
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add tickets/locales/it-IT.po tickets/commands/locales/it-IT.po tickets/common/locales/it-IT.po tickets/commands/analytics.py tickets/tickets.py
+          if git diff --cached --quiet; then
+            echo 'No changes to commit'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Audit and refine Tickets Italian localization'
+          git push origin HEAD:main
