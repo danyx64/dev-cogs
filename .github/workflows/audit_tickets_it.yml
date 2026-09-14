@@ -1,0 +1,96 @@
+name: Audit Tickets Italian formatting
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/audit_tickets_it.yml
+
+permissions:
+  contents: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install --disable-pip-version-check polib
+      - name: Preserve command syntax and Markdown formatting
+        shell: bash
+        run: |
+          python <<'PY'
+          import re
+          from pathlib import Path
+          import polib
+
+          pairs = [
+              (Path('tickets/locales/messages.pot'), Path('tickets/locales/it-IT.po')),
+              (Path('tickets/commands/locales/messages.pot'), Path('tickets/commands/locales/it-IT.po')),
+              (Path('tickets/common/locales/messages.pot'), Path('tickets/common/locales/it-IT.po')),
+          ]
+
+          token_re = re.compile(r"```.*?```|`[^`]*`|https?://\S+|<[^<>\n]+>|\{[^{}]*\}|\[[^\]\n]+\]", re.DOTALL)
+
+          def syntax_only(text):
+              cleaned = token_re.sub('', text)
+              cleaned = cleaned.replace('`', '').replace('*', '').replace('_', '').replace('~', '')
+              return not re.search(r'[A-Za-zÀ-ÿ]', cleaned)
+
+          def fix(src, dst):
+              if not src:
+                  return dst
+              if syntax_only(src):
+                  return src
+
+              if '\n' not in src:
+                  lead = re.match(r'^\s*', src).group(0)
+                  trail = re.search(r'\s*$', src).group(0)
+                  core = dst.strip()
+                  dst = lead + core + trail
+
+              if src.startswith('`') and not dst.startswith('`'):
+                  dst = '`' + dst
+              if src.endswith('`') and not dst.endswith('`'):
+                  dst = dst + '`'
+
+              # Paired inline code/Markdown must stay balanced. If the model damaged it,
+              # prefer the original safe text rather than a broken Discord message.
+              for marker in ('`', '**', '__', '~~'):
+                  if src.count(marker) != dst.count(marker):
+                      return src
+              return dst
+
+          for pot_path, po_path in pairs:
+              pot = polib.pofile(str(pot_path), encoding='utf-8')
+              po = polib.pofile(str(po_path), encoding='utf-8')
+              for source in pot:
+                  if source.obsolete:
+                      continue
+                  entry = po.find(source.msgid, msgctxt=source.msgctxt)
+                  if entry is None:
+                      raise RuntimeError(f'Missing translation entry: {source.msgid!r}')
+                  if source.msgid_plural:
+                      entry.msgstr_plural[0] = fix(source.msgid, entry.msgstr_plural.get(0, ''))
+                      entry.msgstr_plural[1] = fix(source.msgid_plural, entry.msgstr_plural.get(1, ''))
+                  elif source.msgid:
+                      entry.msgstr = fix(source.msgid, entry.msgstr)
+              po.save(str(po_path))
+              check = po_path.with_suffix('.mo')
+              po.save_as_mofile(str(check))
+              check.unlink()
+          PY
+          python -m compileall -q tickets
+          git diff --check
+      - name: Commit audit
+        shell: bash
+        run: |
+          git config user.name "DanyX64"
+          git config user.email "124602162+danyx64@users.noreply.github.com"
+          git add tickets
+          if ! git diff --cached --quiet; then
+            git commit -m "Audit Italian Tickets formatting"
+            git push
+          fi
