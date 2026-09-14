@@ -139,7 +139,7 @@ msgid ""
 "that our "
 msgstr ""
 "Hai creato un ticket al di fuori del nostro orario di lavoro, quindi ti "
-"preghiamo di essere consapevoli che il nostro"
+"preghiamo di essere consapevoli che il nostro "
 
 #: tickets\common\utils.py:276
 msgid "response time may be slightly delayed."
@@ -147,7 +147,7 @@ msgstr "il tempo di risposta può essere leggermente ritardato."
 
 #: tickets\common\utils.py:286
 msgid " Our working hours today are <t:{}:t> to <t:{}:t>."
-msgstr "I nostri orari di lavoro oggi sono <t:{}:t> a <t:{}:t>."
+msgstr " I nostri orari di lavoro oggi sono <t:{}:t> a <t:{}:t>."
 
 #: tickets\common\utils.py:293 tickets\common\views.py:366
 msgid "Outside Working Hours"
@@ -527,7 +527,7 @@ msgstr ""
 
 #: tickets\common\views.py:356
 msgid "You must have one of the following roles to open this ticket: "
-msgstr "Per aprire questo ticket è necessario avere uno dei seguenti ruoli:"
+msgstr "Per aprire questo ticket è necessario avere uno dei seguenti ruoli: "
 
 #: tickets\common\views.py:367
 msgid ""
@@ -620,7 +620,7 @@ msgstr ""
 
 #: tickets\common\views.py:635
 msgid "Welcome to your ticket channel "
-msgstr "Benvenuti nel vostro canale di ticket"
+msgstr "Benvenuti nel vostro canale di ticket "
 
 #: tickets\common\views.py:637
 msgid ""

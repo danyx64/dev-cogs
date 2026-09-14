@@ -61,7 +61,7 @@ msgstr ""
 
 #: tickets\tickets.py:304
 msgid "(Auto-Close) Opened ticket with no response for "
-msgstr "(Auto-Chiudi) Aperto ticket senza risposta per"
+msgstr "(Auto-Chiudi) Aperto ticket senza risposta per "
 
 #: tickets\tickets.py:354
 msgid "User left guild(Auto-Close)"

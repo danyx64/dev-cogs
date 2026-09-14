@@ -25,11 +25,11 @@ msgstr "Guida alla configurazione dei ticket"
 
 #: tickets\commands\admin.py:35
 msgid "To create a support ticket panel, type "
-msgstr "Per creare un pannello di ticket di supporto, digitare"
+msgstr "Per creare un pannello di ticket di supporto, digitare "
 
 #: tickets\commands\admin.py:35
 msgid " <panel_name>`"
-msgstr "<panel_name>"
+msgstr " <panel_name>`"
 
 #: tickets\commands\admin.py:42
 msgid ""
@@ -41,7 +41,7 @@ msgstr ""
 
 #: tickets\commands\admin.py:43
 msgid "<panel_name> <category_id>`"
-msgstr "<panel_name> <category_id>"
+msgstr "<panel_name> <category_id>`"
 
 #: tickets\commands\admin.py:44
 msgid "Step 1"
@@ -53,7 +53,7 @@ msgstr "Imposta il canale in cui si trova il pannello dei ticket dei bot.\n"
 
 #: tickets\commands\admin.py:46
 msgid "<panel_name> <channel_id>`"
-msgstr "<panel_name> <channel_id>"
+msgstr "<panel_name> <channel_id>`"
 
 #: tickets\commands\admin.py:47
 msgid "Step 2"
@@ -65,7 +65,7 @@ msgstr "Imposta l'ID del messaggio del pannello ticket dei bot.\n"
 
 #: tickets\commands\admin.py:49
 msgid "<panel_name> <message_id>`\n"
-msgstr "<panel_name> <message_id>\n"
+msgstr "<panel_name> <message_id>`\n"
 
 #: tickets\commands\admin.py:50
 msgid ""
@@ -93,7 +93,7 @@ msgstr "Imposta il testo del pulsante del pannello ticket.\n"
 
 #: tickets\commands\admin.py:58
 msgid "<panel_name> <button_text>`"
-msgstr "<panel_name> <button_text>"
+msgstr "<panel_name> <button_text>`"
 
 #: tickets\commands\admin.py:59
 msgid "Button Text"
@@ -105,11 +105,11 @@ msgstr "Imposta il colore del pulsante del ticket.\n"
 
 #: tickets\commands\admin.py:61
 msgid "Valid colors are "
-msgstr "I colori validi sono"
+msgstr "I colori validi sono "
 
 #: tickets\commands\admin.py:62
 msgid "<panel_name> <button_color>`"
-msgstr "<panel_name> <button_color>"
+msgstr "<panel_name> <button_color>`"
 
 #: tickets\commands\admin.py:63
 msgid "Button Color"
@@ -121,7 +121,7 @@ msgstr "Impostare il pulsante emoji per il pannello ticket.\n"
 
 #: tickets\commands\admin.py:65
 msgid "<panel_name> <emoji>`"
-msgstr "<panel_name> <emoji>"
+msgstr "<panel_name> <emoji>`"
 
 #: tickets\commands\admin.py:66
 msgid "Button Emoji"
@@ -134,7 +134,7 @@ msgstr "Usa i thread invece dei canali per i ticket\n"
 #: tickets\commands\admin.py:69 tickets\commands\admin.py:73
 #: tickets\commands\admin.py:77
 msgid "<panel_name>`"
-msgstr "<panel_name>"
+msgstr "<panel_name>`"
 
 #: tickets\commands\admin.py:70 tickets\commands\admin.py:1105
 msgid "Thread Tickets"
@@ -164,7 +164,7 @@ msgstr "Imposta il formato di denominazione per i canali dei ticket aperti.\n"
 
 #: tickets\commands\admin.py:81
 msgid "<panel_name> <name_format>`"
-msgstr "<panel_name> <name_format>"
+msgstr "<panel_name> <name_format>`"
 
 #: tickets\commands\admin.py:82
 msgid "Ticket Channel Name"
@@ -176,7 +176,7 @@ msgstr "Impostare il canale di log per un pannello ticket.\n"
 
 #: tickets\commands\admin.py:84
 msgid "<panel_name> <channel>`"
-msgstr "<panel_name> <channel>"
+msgstr "<panel_name> <channel>`"
 
 #: tickets\commands\admin.py:85
 msgid "Log Channel"
@@ -230,7 +230,7 @@ msgstr "Aggiungi un pannello di ticket di supporto"
 
 #: tickets\commands\admin.py:123
 msgid " Panel Saved"
-msgstr "Pannello salvato"
+msgstr " Pannello salvato"
 
 #: tickets\commands\admin.py:124
 msgid "Your panel has been added and will need to be configured."
@@ -686,7 +686,7 @@ msgstr "Modifica del campo modale {} per {}!"
 
 #: tickets\commands\admin.py:729
 msgid "Modal field has been deleted from "
-msgstr "Il campo modale è stato eliminato da"
+msgstr "Il campo modale è stato eliminato da "
 
 #: tickets\commands\admin.py:751
 #, docstring
@@ -804,7 +804,7 @@ msgstr "per crearne uno."
 
 #: tickets\commands\admin.py:900
 msgid "Valid panels are: "
-msgstr "I pannelli validi sono:"
+msgstr "I pannelli validi sono: "
 
 #: tickets\commands\admin.py:904
 msgid "This panel does not have any messages added!"
@@ -840,11 +840,11 @@ msgstr "Nessuno"
 
 #: tickets\commands\admin.py:920 tickets\commands\admin.py:938
 msgid "Ticket Messages for: "
-msgstr "Messaggi ticket per:"
+msgstr "Messaggi ticket per: "
 
 #: tickets\commands\admin.py:942
 msgid "Ticket message has been deleted from "
-msgstr "Il messaggio del ticket è stato cancellato da"
+msgstr "Il messaggio del ticket è stato cancellato da "
 
 #: tickets\commands\admin.py:956
 #, docstring
@@ -958,11 +958,11 @@ msgstr "Ruoli richiesti per aprire"
 
 #: tickets\commands\admin.py:1024
 msgid "Page "
-msgstr "Pagina"
+msgstr "Pagina "
 
 #: tickets\commands\admin.py:1037
 msgid " panel has been deleted!"
-msgstr "Il pannello e' stato cancellato!"
+msgstr " Il pannello e' stato cancellato!"
 
 #: tickets\commands\admin.py:1045
 msgid "There are no more panels configured!"
@@ -1123,7 +1123,7 @@ msgstr "{} è stato rimosso dai ruoli di supporto"
 
 #: tickets\commands\admin.py:1154
 msgid " has been added to support roles"
-msgstr "è stato aggiunto ai ruoli di supporto"
+msgstr " è stato aggiunto ai ruoli di supporto"
 
 #: tickets\commands\admin.py:1166
 #, docstring
@@ -1156,7 +1156,7 @@ msgstr "{} è stato rimosso dai ruoli del pannello {}"
 
 #: tickets\commands\admin.py:1189
 msgid " has been added to the {} panel roles"
-msgstr "è stato aggiunto ai ruoli del pannello {}"
+msgstr " è stato aggiunto ai ruoli del pannello {}"
 
 #: tickets\commands\admin.py:1195
 #, docstring
@@ -1397,7 +1397,7 @@ msgstr "{} è stato rimosso dai ruoli aperti richiesti dal pannello {}"
 
 #: tickets\commands\admin.py:1415
 msgid " has been added to the {} panel's required open roles"
-msgstr "è stato aggiunto ai ruoli aperti richiesti dal pannello {}"
+msgstr " è stato aggiunto ai ruoli aperti richiesti dal pannello {}"
 
 #: tickets\commands\admin.py:1427
 #, docstring
@@ -1483,11 +1483,11 @@ msgstr ""
 
 #: tickets\commands\admin.py:1509
 msgid " has been removed from the blacklist"
-msgstr "è stato rimosso dalla lista nera"
+msgstr " è stato rimosso dalla lista nera"
 
 #: tickets\commands\admin.py:1512
 msgid " has been added to the blacklist"
-msgstr "è stato aggiunto alla lista nera"
+msgstr " è stato aggiunto alla lista nera"
 
 #: tickets\commands\admin.py:1517
 #, docstring
