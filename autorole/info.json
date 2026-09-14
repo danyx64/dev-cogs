@@ -1,0 +1,11 @@
+{
+  "author": ["danyx64"],
+  "name": "AutoRole",
+  "description": "Cog semplice per Red-DiscordBot che assegna automaticamente un ruolo ai nuovi membri quando entrano nel server.",
+  "install_msg": "AutoRole installato. Usa `[p]autorole set @Ruolo` per configurarlo. Il bot deve avere Gestisci ruoli e il proprio ruolo deve stare sopra al ruolo automatico.",
+  "short": "Assegna automaticamente un ruolo ai nuovi membri.",
+  "end_user_data_statement": "Questo cog salva per server solo l'ID del ruolo configurato e lo stato attivo/disattivo. Non memorizza dati personali degli utenti.",
+  "min_bot_version": "3.5.0",
+  "requirements": [],
+  "tags": ["autorole", "roles", "members", "utility", "moderation"]
+}
