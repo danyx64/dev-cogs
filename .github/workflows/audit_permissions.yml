@@ -1,0 +1,67 @@
+name: Audit cog command permissions
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/audit_permissions.yml
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan command permissions
+        shell: bash
+        run: |
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+
+          SKIP = {'.github', '__pycache__'}
+          perm_markers = (
+              'is_owner', 'admin_or_permissions', 'mod_or_permissions',
+              'guildowner_or_permissions', 'has_permissions', 'bot_has_permissions',
+              'default_permissions', 'check', 'is_admin', 'is_mod',
+          )
+          command_markers = ('command', 'group', 'hybrid_command', 'hybrid_group', 'context_menu')
+
+          rows = []
+          for path in sorted(Path('.').rglob('*.py')):
+              if any(part in SKIP for part in path.parts):
+                  continue
+              try:
+                  src = path.read_text(encoding='utf-8')
+                  tree = ast.parse(src)
+              except Exception as exc:
+                  print(f'PARSE_ERROR {path}: {exc}')
+                  continue
+
+              class Visitor(ast.NodeVisitor):
+                  def visit_AsyncFunctionDef(self, node):
+                      self._handle(node)
+                      self.generic_visit(node)
+                  def visit_FunctionDef(self, node):
+                      self._handle(node)
+                      self.generic_visit(node)
+                  def _handle(self, node):
+                      decs = []
+                      for d in node.decorator_list:
+                          seg = ast.get_source_segment(src, d) or ''
+                          decs.append(seg.replace('\n', ' '))
+                      if not any(any(m in d for m in command_markers) for d in decs):
+                          return
+                      perms = [d for d in decs if any(m in d for m in perm_markers)]
+                      rows.append((str(path), node.lineno, node.name, decs, perms))
+              Visitor().visit(tree)
+
+          print(f'TOTAL_COMMANDS={len(rows)}')
+          for path, line, name, decs, perms in rows:
+              print('\n---')
+              print(f'{path}:{line} {name}')
+              print('DECORATORS: ' + ' | '.join(decs))
+              print('PERMISSIONS: ' + (' | '.join(perms) if perms else 'NONE'))
+          PY
