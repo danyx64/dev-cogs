@@ -1,0 +1,10 @@
+{
+  "author": ["danyx64"],
+  "description": "ChannelClear per Red-DiscordBot: .clear N e /clear N cancellano gli ultimi messaggi, .clearall e /clearall ricreano il canale azzerando la cronologia, mentre .clearuser @utente rimuove tutti i messaggi dell'utente nel canale. Le risposte slash sono ephemeral e le conferme testuali spariscono dopo 5 secondi.",
+  "install_msg": "ChannelClear installato. Carica il cog con `[p]load clear`. Per gli slash usa il comando `[p]slash` di Red per abilitare/sincronizzare `/clear` e `/clearall`.",
+  "short": "Pulizia canali con clear, clearall e clearuser.",
+  "end_user_data_statement": "Questo cog non memorizza dati degli utenti e non salva configurazioni persistenti.",
+  "min_bot_version": "3.5.0",
+  "requirements": [],
+  "tags": ["moderation", "clear", "purge", "messages", "channels", "slash"]
+}
