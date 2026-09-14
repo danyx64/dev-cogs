@@ -1,0 +1,10 @@
+{
+  "author": ["danyx64"],
+  "description": "Reaction roles semplici per Red-DiscordBot: associa una reazione su un messaggio a un ruolo. Aggiunge il ruolo quando l'utente reagisce e lo rimuove quando toglie la reazione.",
+  "install_msg": "ReactionRoles installato. Usa `[p]rr add #canale <message_id> <emoji> @Ruolo`, `[p]rr list`, `[p]rr remove` e `[p]rr clear`.",
+  "short": "Reaction roles semplici e persistenti.",
+  "end_user_data_statement": "Questo cog salva solo ID di canale, messaggio e ruolo, oltre all'emoji configurata. Non salva dati personali degli utenti.",
+  "min_bot_version": "3.5.0",
+  "requirements": [],
+  "tags": ["roles", "reaction", "reactionroles", "utility"]
+}
