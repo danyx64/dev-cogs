@@ -9,15 +9,15 @@ from .v42 import ITALY_REGION_CODES, _norm_region
 from .v45 import QuestTracker as QuestTrackerV45
 
 
-# Evita doppie registrazioni del sottocomando in caso di reload del cog.
-for _command_name in ("diagnostica", "debugquest", "regioni"):
+# Evita doppie registrazioni dei sottocomandi in caso di reload del cog.
+for _command_name in ("diagnostica", "debugquest", "regioni", "reinvia", "resend"):
     QuestTrackerV45.quest.remove_command(_command_name)
 
 
 class QuestTracker(QuestTrackerV45):
-    """QuestTracker 4.6.0: filtro Italia piu affidabile e diagnostica delle Quest."""
+    """QuestTracker 4.6.1: filtro Italia piu affidabile e diagnostica delle Quest."""
 
-    __version__ = "4.6.0"
+    __version__ = "4.6.1"
 
     @staticmethod
     def _region_allows_italy(region: Optional[Dict[str, Any]]) -> bool:
@@ -151,3 +151,46 @@ class QuestTracker(QuestTrackerV45):
                 colour=discord.Colour.blurple(),
             )
             await ctx.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
+
+    @QuestTrackerV45.quest.command(name="reinvia", aliases=["resend"])
+    @commands.admin_or_permissions(manage_guild=True)
+    async def quest_resend(self, ctx: commands.Context, quest_id: str):
+        """Reinvia una Quest attiva per ID anche se era gia stata marcata come vista."""
+        quest_id = str(quest_id).strip()
+        settings = await self.config.guild(ctx.guild).all()
+        channel = ctx.guild.get_channel(settings.get("channel_id") or 0)
+        if not isinstance(channel, discord.TextChannel):
+            return await ctx.send("❌ Canale Quest non configurato. Usa `.quest setup #canale`.")
+
+        async with ctx.typing():
+            entries = await self._fetch_quests()
+            active = self._active_quests(entries)
+
+        for canonical, entry, config in active:
+            current_id = str(entry.get("id") or config.get("id") or config.get("quest_id") or "").strip()
+            if current_id != quest_id:
+                continue
+
+            try:
+                await self._send_quest(channel, ctx.guild, entry, config, test=False)
+            except discord.Forbidden:
+                return await ctx.send("❌ Non posso inviare messaggi nel canale Quest configurato.")
+            except discord.HTTPException as exc:
+                return await ctx.send(f"❌ Discord ha rifiutato l'invio della Quest: `{exc}`")
+
+            seen = set(settings.get("seen_keys") or [])
+            seen.add(canonical)
+            await self.config.guild(ctx.guild).seen_keys.set(list(seen)[-500:])
+            return await ctx.send(f"✅ Quest `{quest_id}` reinviata in {channel.mention}.")
+
+        # Se esiste nel feed ma non passa il filtro Italia, spiega il motivo.
+        raw_active = QuestTrackerV41._active_quests(self, entries)
+        for _, entry, config in raw_active:
+            current_id = str(entry.get("id") or config.get("id") or config.get("quest_id") or "").strip()
+            if current_id == quest_id:
+                return await ctx.send(
+                    "⛔ La Quest e attiva nel feed ma non passa il filtro Italia: "
+                    + self._region_summary(entry.get("_italy_region"))
+                )
+
+        await ctx.send("❌ Non trovo una Quest attiva con quell'ID nei feed correnti.")
