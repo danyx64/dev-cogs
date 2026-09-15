@@ -1,9 +1,9 @@
 {
   "author": ["danyx64"],
-  "description": "QuestTracker v4.4.1 per Red-DiscordBot: filtro regionale Italia in modalita fail-closed, dedupe delle varianti regionali e notifica tramite link Discord /quests/<id> mascherato come `[.]()` per mantenere il messaggio pulito e lasciare a Discord la card Quest nativa e interattiva. Il ruolo configurato viene menzionato nello stesso messaggio della Quest.",
-  "install_msg": "QuestTracker v4.4.1 installato. Usa `[p]quest setup #canale`, `[p]quest ruolo @Ruolo` e `[p]quest ping on`. Il tracker scarta le Quest senza conferma regionale esplicita per Italia/UE/SEE/globale e invia `@Ruolo [.](https://discord.com/quests/<id>)` nello stesso messaggio, cosi il link resta discreto. Verifica con `[p]quest test` e `[p]quest version`.",
-  "short": "Discord Quest tracker con filtro Italia stretto e card Quest native.",
-  "end_user_data_statement": "Questo cog salva solo configurazione del server, ID di canale/ruolo, impostazioni QuestTracker e identificatori delle Quest gia rilevate. Non memorizza dati personali degli utenti.",
+  "description": "QuestTracker v4.5.0 per Red-DiscordBot: filtro regionale Italia in modalita fail-closed, dedupe delle varianti regionali, card Quest native di Discord e messaggio di notifica personalizzabile con i placeholder `{role}` e `{link}`.",
+  "install_msg": "QuestTracker v4.5.0 installato. Usa `[p]quest setup #canale`, `[p]quest ruolo @Ruolo` e `[p]quest ping on`. Personalizza la notifica con `[p]quest messaggio <testo>` usando `{role}` per il ruolo e `{link}` per il link Quest mascherato come punto. Usa `[p]quest messaggio` per vedere il template corrente e `[p]quest test` per provarlo.",
+  "short": "Discord Quest tracker italiano con messaggio personalizzabile.",
+  "end_user_data_statement": "Questo cog salva solo configurazione del server, ID di canale/ruolo, template del messaggio Quest, impostazioni QuestTracker e identificatori delle Quest gia rilevate. Non memorizza dati personali degli utenti.",
   "min_bot_version": "3.5.0",
   "requirements": [],
   "tags": ["discord", "quests", "quest", "notifications", "utility", "roles", "italy", "region"]
