@@ -1,7 +1,7 @@
 {
   "author": ["danyx64"],
-  "description": "QuestTracker v4.4 per Red-DiscordBot: filtro regionale Italia in modalita fail-closed, dedupe delle varianti regionali e notifica tramite il link Discord /quests/<id> per ottenere la card Quest nativa e interattiva di Discord. Il ruolo configurato viene menzionato nello stesso messaggio della Quest.",
-  "install_msg": "QuestTracker v4.4 installato. Usa `[p]quest setup #canale`, `[p]quest ruolo @Ruolo` e `[p]quest ping on`. Il tracker scarta le Quest senza conferma regionale esplicita per Italia/UE/SEE/globale e invia la card Quest nativa di Discord tramite `https://discord.com/quests/<id>`. Verifica con `[p]quest test` e `[p]quest version`.",
+  "description": "QuestTracker v4.4.1 per Red-DiscordBot: filtro regionale Italia in modalita fail-closed, dedupe delle varianti regionali e notifica tramite link Discord /quests/<id> mascherato come `[.]()` per mantenere il messaggio pulito e lasciare a Discord la card Quest nativa e interattiva. Il ruolo configurato viene menzionato nello stesso messaggio della Quest.",
+  "install_msg": "QuestTracker v4.4.1 installato. Usa `[p]quest setup #canale`, `[p]quest ruolo @Ruolo` e `[p]quest ping on`. Il tracker scarta le Quest senza conferma regionale esplicita per Italia/UE/SEE/globale e invia `@Ruolo [.](https://discord.com/quests/<id>)` nello stesso messaggio, cosi il link resta discreto. Verifica con `[p]quest test` e `[p]quest version`.",
   "short": "Discord Quest tracker con filtro Italia stretto e card Quest native.",
   "end_user_data_statement": "Questo cog salva solo configurazione del server, ID di canale/ruolo, impostazioni QuestTracker e identificatori delle Quest gia rilevate. Non memorizza dati personali degli utenti.",
   "min_bot_version": "3.5.0",
