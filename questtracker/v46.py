@@ -9,6 +9,11 @@ from .v42 import ITALY_REGION_CODES, _norm_region
 from .v45 import QuestTracker as QuestTrackerV45
 
 
+# Evita doppie registrazioni del sottocomando in caso di reload del cog.
+for _command_name in ("diagnostica", "debugquest", "regioni"):
+    QuestTrackerV45.quest.remove_command(_command_name)
+
+
 class QuestTracker(QuestTrackerV45):
     """QuestTracker 4.6.0: filtro Italia piu affidabile e diagnostica delle Quest."""
 
