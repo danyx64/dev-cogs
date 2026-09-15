@@ -1,8 +1,8 @@
 {
   "author": ["danyx64"],
-  "description": "QuestTracker v4.8.0 per Red-DiscordBot: controllo automatico ogni 60 secondi, retry multipli dei feed, unione delle letture per non perdere Quest transitorie, cache di emergenza, filtro regionale Italia robusto, dedupe sicuro, card Quest native e messaggio personalizzabile con `{role}` e `{link}`.",
-  "install_msg": "QuestTracker v4.8.0 installato. Usa `[p]quest setup #canale`, `[p]quest ruolo @Ruolo` e `[p]quest ping on`. Il cog controlla automaticamente nuove Quest ogni 60 secondi e ritenta i feed in caso di risposte incomplete. Usa `[p]quest diagnostica` se una Quest sembra mancare e `[p]quest reinvia <quest_id>` per reinviarla manualmente.",
-  "short": "Discord Quest tracker italiano con scansione continua e feed resilienti.",
+  "description": "QuestTracker v4.9.0 per Red-DiscordBot: controllo automatico ogni 15 secondi, lettura multi-source delle Quest, richieste condizionali ETag/304, rispetto dei rate limit HTTP 429, cache rolling per non perdere Quest transitorie, filtro regionale Italia robusto, retry delle notifiche e diagnostica per ID.",
+  "install_msg": "QuestTracker v4.9.0 installato. Usa `[p]quest setup #canale`, `[p]quest ruolo @Ruolo` e `[p]quest ping on`. Il cog controlla automaticamente le nuove Quest ogni 15 secondi, usa piu fonti e rallenta automaticamente una fonte se risponde 429. Usa `[p]quest cerca <quest_id>` per verificare un ID specifico, `[p]quest diagnostica` per il quadro generale e `[p]quest reinvia <quest_id>` per reinviare una Quest attiva.",
+  "short": "Discord Quest tracker italiano con polling 15s, fonti multiple e rate-limit backoff.",
   "end_user_data_statement": "Questo cog salva solo configurazione del server, ID di canale/ruolo, template del messaggio Quest, impostazioni QuestTracker e identificatori delle Quest gia rilevate. Non memorizza dati personali degli utenti.",
   "min_bot_version": "3.5.0",
   "requirements": [],
