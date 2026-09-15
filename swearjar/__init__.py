@@ -1,7 +1,7 @@
 from redbot.core import commands
 
 from .command_cog import SwearJarCommands
-from .v41 import SwearJar
+from .v42 import SwearJar
 
 
 async def _swear_check(command_cog, ctx, *, text: str):
@@ -19,7 +19,7 @@ async def setup(bot):
     detector = SwearJar(bot)
     await bot.add_cog(detector)
 
-    # v4/v4.1 contengono ancora i vecchi entrypoint prefix. Li rimuoviamo dal
+    # v4+ contengono ancora i vecchi entrypoint prefix. Li rimuoviamo dal
     # Bot e registriamo il Cog statico per `.swear` / `.swearjar`.
     # `/top` rimane invece l'app command del Cog principale.
     for name in ("swear", "swearjar"):
