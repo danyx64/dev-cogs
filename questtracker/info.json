@@ -1,7 +1,7 @@
 {
   "author": ["danyx64"],
-  "description": "QuestTracker v4.6.1 per Red-DiscordBot: filtro regionale Italia bilanciato per evitare falsi negativi quando il feed regioni e incompleto, dedupe piu sicuro, card Quest native di Discord, messaggio personalizzabile con `{role}` e `{link}`, diagnostica e reinvio manuale per ID.",
-  "install_msg": "QuestTracker v4.6.1 installato. Usa `[p]quest setup #canale`, `[p]quest ruolo @Ruolo` e `[p]quest ping on`. Personalizza la notifica con `[p]quest messaggio <testo>` usando `{role}` e `{link}`. Se una Quest sembra mancare usa `[p]quest diagnostica`; se e attiva e vuoi reinviarla usa `[p]quest reinvia <quest_id>`.",
+  "description": "QuestTracker v4.6.2 per Red-DiscordBot: filtro regionale Italia bilanciato per evitare falsi negativi quando il feed regioni e incompleto, dedupe piu sicuro, card Quest native di Discord, messaggio personalizzabile con `{role}` e `{link}`, diagnostica dettagliata delle varianti regionali e reinvio manuale per ID.",
+  "install_msg": "QuestTracker v4.6.2 installato. Usa `[p]quest setup #canale`, `[p]quest ruolo @Ruolo` e `[p]quest ping on`. Personalizza la notifica con `[p]quest messaggio <testo>` usando `{role}` e `{link}`. Se una Quest sembra mancare usa `[p]quest diagnostica`; se e attiva e vuoi reinviarla usa `[p]quest reinvia <quest_id>`.",
   "short": "Discord Quest tracker italiano con filtro regioni robusto e diagnostica.",
   "end_user_data_statement": "Questo cog salva solo configurazione del server, ID di canale/ruolo, template del messaggio Quest, impostazioni QuestTracker e identificatori delle Quest gia rilevate. Non memorizza dati personali degli utenti.",
   "min_bot_version": "3.5.0",
