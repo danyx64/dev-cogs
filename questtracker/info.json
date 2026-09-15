@@ -1,8 +1,8 @@
 {
   "author": ["danyx64"],
-  "description": "QuestTracker v6.1.0 per Red-DiscordBot: polling ogni 15 secondi, quattro fonti Quest, filtro Italia strict, baseline persistente per evitare il replay di missioni vecchie, coda per nuovi ID e nuove famiglie, dedupe per campagna e limite di sicurezza sugli invii automatici.",
-  "install_msg": "QuestTracker v6.1.0 installato. Mantiene canale, ruolo, ping e messaggio personalizzato. Al primo ciclo crea una baseline delle Quest attive senza ripubblicarle; poi controlla ogni 15 secondi e considera soltanto nuovi ID o nuove famiglie. Le Quest senza conferma Italia restano in attesa. Il reinvio manuale per ID rimane disponibile.",
-  "short": "Discord Quest tracker italiano con baseline persistente e protezione anti-spam.",
+  "description": "QuestTracker v6.2.0 per Red-DiscordBot: polling ogni 15 secondi, quattro fonti Quest, automatico solo con prova regionale positiva per l'Italia, attesa persistente per gli ID inizialmente unknown, dedupe per famiglia, baseline anti-replay e force manuale per ID.",
+  "install_msg": "QuestTracker v6.2.0 installato. Mantiene canale, ruolo, ping e messaggio personalizzato. Al primo ciclo crea una baseline delle Quest gia attive e non ne reinvia nessuna. Da quel momento invia automaticamente solo nuovi ID confermati disponibili in Italia (IT/EU/EEA/global oppure blacklist che non esclude IT). Gli unknown aspettano dati regionali migliori; i non-IT non vengono auto-inviati. Usa `[p]quest reinvia <id>` per forzare manualmente qualsiasi ID presente nei feed.",
+  "short": "Discord Quest tracker italiano con auto-invio solo su evidenza regionale positiva.",
   "end_user_data_statement": "Questo cog salva solo configurazione del server, ID di canale/ruolo, template del messaggio Quest, impostazioni QuestTracker e identificatori delle Quest osservate o inviate. Non memorizza dati personali degli utenti.",
   "min_bot_version": "3.5.0",
   "requirements": [],
