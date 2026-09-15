@@ -1,9 +1,9 @@
 {
   "author": ["danyx64"],
-  "description": "QuestTracker v6.0.0 per Red-DiscordBot: polling ogni 15 secondi, quattro fonti Quest, consenso regionale multi-source, dedupe per famiglia/campagna, grace di 15 secondi per le Quest appena uscite senza metadati regione, audit delle consegne reali e reinvio manuale esatto dell'ID richiesto.",
-  "install_msg": "QuestTracker v6.0.0 installato. Mantiene canale, ruolo, ping, storico e messaggio personalizzato esistenti. Le Quest IT/EU/global vengono inviate; quelle esplicitamente estere vengono bloccate; una campagna completamente senza dati regione aspetta un ciclo di 15 secondi e poi viene inviata una sola volta best-effort se nessuna fonte la dichiara estera. `[p]quest reinvia <id>` forza sempre l'ID richiesto se presente nei feed.",
-  "short": "Discord Quest tracker italiano con polling 15s e fallback anti-miss per nuove Quest.",
-  "end_user_data_statement": "Questo cog salva solo configurazione del server, ID di canale/ruolo, template del messaggio Quest, impostazioni QuestTracker e identificatori delle Quest gia rilevate/inviate. Non memorizza dati personali degli utenti.",
+  "description": "QuestTracker v6.1.0 per Red-DiscordBot: polling ogni 15 secondi, quattro fonti Quest, filtro Italia strict, baseline persistente per evitare il replay di missioni vecchie, coda per nuovi ID e nuove famiglie, dedupe per campagna e limite di sicurezza sugli invii automatici.",
+  "install_msg": "QuestTracker v6.1.0 installato. Mantiene canale, ruolo, ping e messaggio personalizzato. Al primo ciclo crea una baseline delle Quest attive senza ripubblicarle; poi controlla ogni 15 secondi e considera soltanto nuovi ID o nuove famiglie. Le Quest senza conferma Italia restano in attesa. Il reinvio manuale per ID rimane disponibile.",
+  "short": "Discord Quest tracker italiano con baseline persistente e protezione anti-spam.",
+  "end_user_data_statement": "Questo cog salva solo configurazione del server, ID di canale/ruolo, template del messaggio Quest, impostazioni QuestTracker e identificatori delle Quest osservate o inviate. Non memorizza dati personali degli utenti.",
   "min_bot_version": "3.5.0",
   "requirements": [],
   "tags": ["discord", "quests", "quest", "notifications", "utility", "roles", "italy", "region"]
