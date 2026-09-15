@@ -10,7 +10,7 @@ class Status(commands.Cog):
     """Gestisce tutti gli status del bot: normali, streaming, ordine/random, durate e placeholder dinamici."""
 
     __author__ = "danyx64"
-    __version__ = "1.3.0"
+    __version__ = "1.4.0"
 
     VALID_TYPES = {"playing", "watching", "listening", "streaming", "custom"}
 
@@ -24,16 +24,19 @@ class Status(commands.Cog):
             default_stream_url="https://www.twitch.tv/4vv0c4t0",
             statuses=[],
             current_index=0,
+            member_guild_id=None,
         )
         self._task = None
         self._wake = asyncio.Event()
         self._last_random_index = None
         self._active_entry = None
         self._presence_refresh_task = None
+        self._member_guild_id = None
 
     async def cog_load(self):
-        # Su reload non conserviamo nessuna baseline del conteggio membri:
-        # il runner riparte e renderizza lo status usando i dati correnti delle guild.
+        # La guild usata per i placeholder dei membri viene salvata in Config.
+        # Se ancora non esiste, il runner scegliera automaticamente la guild piu grande.
+        self._member_guild_id = await self.config.member_guild_id()
         self._active_entry = None
         self._start_loop()
 
@@ -54,11 +57,48 @@ class Status(commands.Cog):
             return max(0, int(guild.member_count))
         return len(guild.members)
 
+    def _member_source_guild(self):
+        """Restituisce la guild sorgente dei conteggi, con fallback sicuro alla piu grande."""
+        if self._member_guild_id:
+            guild = self.bot.get_guild(int(self._member_guild_id))
+            if guild is not None:
+                return guild
+
+        guilds = list(self.bot.guilds)
+        if not guilds:
+            return None
+        return max(guilds, key=self._guild_member_count)
+
+    async def _ensure_member_source_guild(self):
+        """Assicura che esista una guild sorgente persistente per i placeholder dei membri."""
+        guild = None
+        if self._member_guild_id:
+            guild = self.bot.get_guild(int(self._member_guild_id))
+
+        if guild is None:
+            guilds = list(self.bot.guilds)
+            if not guilds:
+                self._member_guild_id = None
+                return None
+            guild = max(guilds, key=self._guild_member_count)
+            self._member_guild_id = guild.id
+            await self.config.member_guild_id.set(guild.id)
+
+        return guild
+
     def _placeholder_values(self):
         guilds = list(self.bot.guilds)
-        member_count = sum(self._guild_member_count(guild) for guild in guilds)
-        human_count = sum(1 for guild in guilds for member in guild.members if not member.bot)
-        bot_count = sum(1 for guild in guilds for member in guild.members if member.bot)
+        source_guild = self._member_source_guild()
+
+        if source_guild is not None:
+            member_count = self._guild_member_count(source_guild)
+            human_count = sum(1 for member in source_guild.members if not member.bot)
+            bot_count = sum(1 for member in source_guild.members if member.bot)
+        else:
+            member_count = 0
+            human_count = 0
+            bot_count = 0
+
         channel_count = sum(len(guild.channels) for guild in guilds)
         user_count = len(self.bot.users)
         bot_name = self.bot.user.name if self.bot.user else "Bot"
@@ -125,7 +165,7 @@ class Status(commands.Cog):
         except asyncio.CancelledError:
             raise
         except Exception:
-            # Il ciclo principale continuera' comunque ad aggiornare lo status.
+            # Il ciclo principale continuera comunque ad aggiornare lo status.
             pass
 
     async def _choose_index(self, statuses, mode, current_index):
@@ -145,6 +185,9 @@ class Status(commands.Cog):
 
     async def _runner(self):
         await self.bot.wait_until_ready()
+        # Migrazione automatica dalla vecchia configurazione: al primo reload
+        # sceglie la guild piu grande e ne salva l'ID per tutti i reload successivi.
+        await self._ensure_member_source_guild()
 
         while True:
             try:
@@ -192,29 +235,41 @@ class Status(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        # Dopo reconnect ripubblica lo status usando il conteggio corrente.
+        # Dopo reconnect verifica la guild sorgente e ripubblica lo status.
+        await self._ensure_member_source_guild()
         self._schedule_presence_refresh()
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
-        self._schedule_presence_refresh()
+        source = self._member_source_guild()
+        if source is not None and member.guild.id == source.id:
+            self._schedule_presence_refresh()
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
-        # Manteniamo anche il listener classico per compatibilita e refresh rapido.
-        self._schedule_presence_refresh()
+        source = self._member_source_guild()
+        if source is not None and member.guild.id == source.id:
+            self._schedule_presence_refresh()
 
     @commands.Cog.listener()
     async def on_raw_member_remove(self, payload):
-        # Questo evento arriva anche quando il membro non e' presente nella cache.
-        self._schedule_presence_refresh()
+        # Arriva anche quando il membro non era presente nella cache.
+        source = self._member_source_guild()
+        if source is not None and payload.guild_id == source.id:
+            self._schedule_presence_refresh()
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild):
+        if self._member_guild_id is None:
+            await self._ensure_member_source_guild()
         self._schedule_presence_refresh()
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild):
+        if self._member_guild_id == guild.id:
+            self._member_guild_id = None
+            await self.config.member_guild_id.set(None)
+            await self._ensure_member_source_guild()
         self._schedule_presence_refresh()
 
     @commands.group(name="status", invoke_without_command=True)
@@ -233,6 +288,7 @@ class Status(commands.Cog):
             f"`{p}status add listening 30 {{human_count}} utenti`\n"
             f"`{p}status add streaming 90 Live su Hobby MC`\n"
             f"`{p}status addstream 60 https://www.twitch.tv/4vv0c4t0 Live su Hobby MC`\n"
+            f"`{p}status guild` per usare il server corrente come sorgente membri\n"
             f"`{p}status mode order` oppure `{p}status mode random`\n"
             f"`{p}status recount` per forzare il refresh del conteggio\n"
             f"`{p}status placeholders`\n"
@@ -241,17 +297,38 @@ class Status(commands.Cog):
 
     @status.command(name="placeholders", aliases=["vars", "variables"])
     async def status_placeholders(self, ctx: commands.Context):
+        source = self._member_source_guild()
+        source_name = source.name if source is not None else "nessuna"
         await ctx.send(
             "**Placeholder dinamici**\n"
-            "`{member_count}` / `{members}` -> membri totali correnti nelle guild del bot\n"
-            "`{human_count}` -> membri non-bot visibili in cache\n"
-            "`{bot_count}` -> bot visibili in cache\n"
-            "`{guild_count}` / `{server_count}` -> numero server\n"
-            "`{channel_count}` -> canali totali\n"
+            "`{member_count}` / `{members}` -> membri della guild sorgente\n"
+            "`{human_count}` -> membri non-bot visibili nella guild sorgente\n"
+            "`{bot_count}` -> bot visibili nella guild sorgente\n"
+            "`{guild_count}` / `{server_count}` -> numero server del bot\n"
+            "`{channel_count}` -> canali totali nelle guild del bot\n"
             "`{user_count}` -> utenti unici visibili al bot\n"
             "`{bot_name}` -> nome del bot\n\n"
-            "`{member_count}` non usa piu un contatore parallelo: viene ricalcolato dai dati correnti delle guild."
+            f"Guild sorgente attuale: **{source_name}**."
         )
+
+    @status.command(name="guild", aliases=["memberguild", "sourceguild"])
+    @commands.guild_only()
+    async def status_guild(self, ctx: commands.Context, guild_id: int = None):
+        """Imposta la guild da usare per member_count, human_count e bot_count."""
+        guild = ctx.guild if guild_id is None else self.bot.get_guild(guild_id)
+        if guild is None:
+            return await ctx.send("Guild non trovata. Usa un ID di un server in cui il bot e presente.")
+
+        self._member_guild_id = guild.id
+        await self.config.member_guild_id.set(guild.id)
+
+        if self._active_entry:
+            await self._refresh_current_presence()
+        else:
+            self._notify_loop()
+
+        count = self._guild_member_count(guild)
+        await ctx.send(f"Guild sorgente impostata su **{guild.name}** (`{guild.id}`): **{count}** membri.")
 
     @status.command(name="add")
     async def status_add(self, ctx: commands.Context, kind: str, duration: int, *, text: str):
@@ -370,6 +447,7 @@ class Status(commands.Cog):
     async def status_enable(self, ctx: commands.Context):
         if not await self.config.statuses():
             return await ctx.send("Aggiungi almeno uno status prima di abilitare il ciclo.")
+        await self._ensure_member_source_guild()
         await self.config.enabled.set(True)
         self._notify_loop()
         await ctx.send("Ciclo status **abilitato**.")
@@ -389,23 +467,31 @@ class Status(commands.Cog):
 
     @status.command(name="recount", aliases=["refreshcount", "countrefresh"])
     async def status_recount(self, ctx: commands.Context):
-        """Ricalcola il conteggio corrente e aggiorna subito la presenza."""
+        """Ricalcola il conteggio della guild sorgente e aggiorna subito la presenza."""
+        guild = await self._ensure_member_source_guild()
         if self._active_entry:
             await self._refresh_current_presence()
         else:
             self._notify_loop()
-        count = self._placeholder_values()["member_count"]
-        await ctx.send(f"Conteggio membri aggiornato: **{count}**.")
+
+        if guild is None:
+            return await ctx.send("Nessuna guild disponibile per il conteggio membri.")
+
+        count = self._guild_member_count(guild)
+        await ctx.send(f"Conteggio membri aggiornato da **{guild.name}**: **{count}**.")
 
     @status.command(name="show")
     async def status_show(self, ctx: commands.Context):
         data = await self.config.all()
         values = self._placeholder_values()
+        source = self._member_source_guild()
+        source_text = f"{source.name} (`{source.id}`)" if source is not None else "nessuna"
         await ctx.send(
             f"Versione: **{self.__version__}**\n"
             f"Attivo: **{'si' if data.get('enabled') else 'no'}**\n"
             f"Modalita: **{data.get('mode')}**\n"
             f"Status configurati: **{len(data.get('statuses', []))}**\n"
+            f"Guild membri: **{source_text}**\n"
             f"Membri correnti: **{values['member_count']}**\n"
             f"Twitch predefinito: <{data.get('default_stream_url')}>"
         )
