@@ -1,10 +1,10 @@
-from typing import Any, Dict, Optional
+from datetime import datetime, timezone
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import discord
 from redbot.core import commands
 
-from .questtracker import _canonical_key
-from .v41 import QuestTracker as QuestTrackerV41
+from .questtracker import _canonical_key, _parse_iso, _quest_config
 from .v42 import ITALY_REGION_CODES, _norm_region
 from .v45 import QuestTracker as QuestTrackerV45
 
@@ -15,9 +15,9 @@ for _command_name in ("diagnostica", "debugquest", "regioni", "reinvia", "resend
 
 
 class QuestTracker(QuestTrackerV45):
-    """QuestTracker 4.6.1: filtro Italia piu affidabile e diagnostica delle Quest."""
+    """QuestTracker 4.6.2: filtro Italia robusto, dedupe sicuro e diagnostica."""
 
-    __version__ = "4.6.1"
+    __version__ = "4.6.2"
 
     @staticmethod
     def _region_allows_italy(region: Optional[Dict[str, Any]]) -> bool:
@@ -81,20 +81,60 @@ class QuestTracker(QuestTrackerV45):
             base += " | exclude: " + ", ".join(exclude)
         return base
 
+    @staticmethod
+    def _raw_active_entries(
+        entries: Iterable[Dict[str, Any]],
+    ) -> List[Tuple[str, Dict[str, Any], Dict[str, Any]]]:
+        """Quest attive prima del filtro regione e prima del dedupe.
+
+        Serve alla diagnostica: mostra anche varianti regionali con ID diversi che
+        il normale flusso di notifica deduplica intenzionalmente.
+        """
+        now = datetime.now(timezone.utc)
+        result: List[Tuple[str, Dict[str, Any], Dict[str, Any]]] = []
+
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            config = _quest_config(entry)
+            if not config:
+                continue
+
+            starts = _parse_iso(config.get("starts_at"))
+            expires = _parse_iso(config.get("expires_at"))
+            if not starts or not expires or starts > now or expires <= now:
+                continue
+
+            name = str((config.get("messages") or {}).get("quest_name") or "")
+            if name.upper().startswith("[TEST]"):
+                continue
+
+            result.append((_canonical_key(entry, config), entry, config))
+
+        result.sort(
+            key=lambda item: _parse_iso(item[2].get("starts_at"))
+            or datetime.min.replace(tzinfo=timezone.utc),
+            reverse=True,
+        )
+        return result
+
     @QuestTrackerV45.quest.command(name="diagnostica", aliases=["debugquest", "regioni"])
     @commands.admin_or_permissions(manage_guild=True)
     async def quest_diagnostics(self, ctx: commands.Context):
-        """Mostra cosa arriva dai feed, cosa passa il filtro Italia e cosa e' gia visto."""
+        """Mostra feed, filtro Italia, varianti regionali e stato gia visto."""
         async with ctx.typing():
             entries = await self._fetch_quests()
-            # Bypass del filtro regionale, ma mantiene controllo date/test/dedupe base.
-            raw_active = QuestTrackerV41._active_quests(self, entries)
+            raw_active = self._raw_active_entries(entries)
             accepted = self._active_quests(entries)
 
-        accepted_canonicals = {canonical for canonical, _, _ in accepted}
         seen = set(await self.config.guild(ctx.guild).seen_keys())
+        accepted_ids = {
+            str(entry.get("id") or config.get("id") or config.get("quest_id") or "").strip()
+            for _, entry, config in accepted
+        }
 
         lines = []
+        allowed_raw = 0
         for canonical, entry, config in raw_active:
             messages = config.get("messages") or {}
             app = config.get("application") or {}
@@ -104,11 +144,16 @@ class QuestTracker(QuestTrackerV45):
                 or app.get("name")
                 or "Discord Quest"
             )
-            quest_id = str(entry.get("id") or config.get("id") or "?")
+            quest_id = str(entry.get("id") or config.get("id") or config.get("quest_id") or "?").strip()
             region = entry.get("_italy_region")
+            region_allowed = self._region_allows_italy(region)
+            if region_allowed:
+                allowed_raw += 1
 
-            if canonical not in accepted_canonicals:
-                state = "⛔ scartata"
+            if not region_allowed:
+                state = "⛔ regione non Italia"
+            elif quest_id not in accepted_ids:
+                state = "♻️ variante duplicata"
             elif canonical in seen:
                 state = "☑️ Italia, gia vista"
             else:
@@ -120,9 +165,9 @@ class QuestTracker(QuestTrackerV45):
             )
 
         header = (
-            f"Feed attive: **{len(raw_active)}** • "
-            f"accettate Italia: **{len(accepted)}** • "
-            f"scartate: **{max(0, len(raw_active) - len(accepted))}**"
+            f"Feed attive/varianti: **{len(raw_active)}** • "
+            f"compatibili Italia prima dedupe: **{allowed_raw}** • "
+            f"notificabili dopo dedupe: **{len(accepted)}**"
         )
 
         if not lines:
@@ -183,14 +228,20 @@ class QuestTracker(QuestTrackerV45):
             await self.config.guild(ctx.guild).seen_keys.set(list(seen)[-500:])
             return await ctx.send(f"✅ Quest `{quest_id}` reinviata in {channel.mention}.")
 
-        # Se esiste nel feed ma non passa il filtro Italia, spiega il motivo.
-        raw_active = QuestTrackerV41._active_quests(self, entries)
-        for _, entry, config in raw_active:
+        # Se esiste nel feed ma non passa il filtro/dedupe, spiega il motivo.
+        for canonical, entry, config in self._raw_active_entries(entries):
             current_id = str(entry.get("id") or config.get("id") or config.get("quest_id") or "").strip()
-            if current_id == quest_id:
+            if current_id != quest_id:
+                continue
+            region = entry.get("_italy_region")
+            if not self._region_allows_italy(region):
                 return await ctx.send(
                     "⛔ La Quest e attiva nel feed ma non passa il filtro Italia: "
-                    + self._region_summary(entry.get("_italy_region"))
+                    + self._region_summary(region)
                 )
+            return await ctx.send(
+                "♻️ La Quest e una variante regionale duplicata di una campagna gia selezionata. "
+                "Usa `.quest diagnostica` per vedere quale ID viene notificato."
+            )
 
         await ctx.send("❌ Non trovo una Quest attiva con quell'ID nei feed correnti.")
