@@ -1,8 +1,8 @@
 {
   "author": ["danyx64"],
-  "description": "QuestTracker v4.9.0 per Red-DiscordBot: controllo automatico ogni 15 secondi, lettura multi-source delle Quest, richieste condizionali ETag/304, rispetto dei rate limit HTTP 429, cache rolling per non perdere Quest transitorie, filtro regionale Italia robusto, retry delle notifiche e diagnostica per ID.",
-  "install_msg": "QuestTracker v4.9.0 installato. Usa `[p]quest setup #canale`, `[p]quest ruolo @Ruolo` e `[p]quest ping on`. Il cog controlla automaticamente le nuove Quest ogni 15 secondi, usa piu fonti e rallenta automaticamente una fonte se risponde 429. Usa `[p]quest cerca <quest_id>` per verificare un ID specifico, `[p]quest diagnostica` per il quadro generale e `[p]quest reinvia <quest_id>` per reinviare una Quest attiva.",
-  "short": "Discord Quest tracker italiano con polling 15s, fonti multiple e rate-limit backoff.",
+  "description": "QuestTracker v5.0.0 per Red-DiscordBot: polling ogni 15 secondi, piu fonti Quest, due fonti indipendenti per le restrizioni regionali, filtro Italia strict/fail-closed, dedupe per famiglia di campagna, esclusione delle Quest demo note, rispetto dei rate limit HTTP 429 e mantenimento del messaggio personalizzato con `{role}` e `{link}`.",
+  "install_msg": "QuestTracker v5.0.0 installato. Mantiene la configurazione esistente. Controlla ogni 15 secondi e non invia una Quest finche non ha una conferma regionale affidabile per l'Italia. Usa `[p]quest diagnostica` per vedere IT/non-IT/attesa/dedupe, `[p]quest cerca <quest_id>` per un ID specifico e `[p]quest controlla` per forzare una scansione.",
+  "short": "Discord Quest tracker italiano con filtro regioni strict e dedupe campagna.",
   "end_user_data_statement": "Questo cog salva solo configurazione del server, ID di canale/ruolo, template del messaggio Quest, impostazioni QuestTracker e identificatori delle Quest gia rilevate. Non memorizza dati personali degli utenti.",
   "min_bot_version": "3.5.0",
   "requirements": [],
