@@ -1,8 +1,8 @@
 {
   "author": ["danyx64"],
-  "description": "QuestTracker v5.1.0 per Red-DiscordBot: polling ogni 15 secondi, quattro fonti Quest incluse le sorgenti correnti del tracker, consenso tra piu fonti regionali, filtro Italia strict/fail-closed, dedupe per famiglia di campagna, audit della cronologia per distinguere Quest realmente inviate da vecchi falsi seen, rispetto dei rate limit HTTP 429 e mantenimento del messaggio personalizzato con `{role}` e `{link}`.",
-  "install_msg": "QuestTracker v5.1.0 installato. Mantiene la configurazione esistente. Al primo avvio ricostruisce dal canale Quest quali missioni sono state realmente pubblicate, poi controlla ogni 15 secondi. Le Quest con regione sconosciuta restano in attesa; quelle confermate Italia/global vengono inviate una sola volta per campagna. Usa `[p]quest diagnostica`, `[p]quest cerca <quest_id>`, `[p]quest controlla` e `[p]quest status`.",
-  "short": "Discord Quest tracker italiano con consenso regioni e audit delle consegne reali.",
+  "description": "QuestTracker v5.2.0 per Red-DiscordBot: polling ogni 15 secondi, quattro fonti Quest, consenso regionale multi-source, rilevamento Italia per famiglia/campagna, dedupe delle varianti, audit delle consegne reali e reinvio manuale dell'ID richiesto.",
+  "install_msg": "QuestTracker v5.2.0 installato. Mantiene la configurazione esistente. Il controllo automatico raggruppa le varianti della stessa campagna e sceglie una sola variante compatibile con l'Italia. Usa `[p]quest cerca <id>` per vedere il verdetto dell'ID e della famiglia; `[p]quest reinvia <id>` invia manualmente proprio l'ID richiesto se presente nei feed.",
+  "short": "Discord Quest tracker italiano con rilevamento per campagna e reinvio manuale esatto.",
   "end_user_data_statement": "Questo cog salva solo configurazione del server, ID di canale/ruolo, template del messaggio Quest, impostazioni QuestTracker e identificatori delle Quest gia rilevate/inviate. Non memorizza dati personali degli utenti.",
   "min_bot_version": "3.5.0",
   "requirements": [],
