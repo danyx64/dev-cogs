@@ -7,9 +7,9 @@ from .v43 import QuestTracker as QuestTrackerV43
 
 
 class QuestTracker(QuestTrackerV43):
-    """QuestTracker 4.4.0: filtro Italia fail-closed e card Quest native di Discord."""
+    """QuestTracker 4.4.1: filtro Italia fail-closed e card Quest native di Discord."""
 
-    __version__ = "4.4.0"
+    __version__ = "4.4.1"
 
     @staticmethod
     def _region_allows_italy(region: Optional[Dict[str, Any]]) -> bool:
@@ -60,7 +60,7 @@ class QuestTracker(QuestTrackerV43):
         *,
         test: bool = False,
     ) -> None:
-        """Invia il link Quest puro, lasciando a Discord la card interattiva nativa."""
+        """Invia ruolo + link Quest mascherato, lasciando a Discord la card nativa."""
         url = self._quest_share_url(entry, config)
         if url is None:
             return
@@ -68,15 +68,20 @@ class QuestTracker(QuestTrackerV43):
         settings = await self.config.guild(guild).all()
         role = guild.get_role(settings.get("role_id") or 0)
 
-        lines = []
+        # Il punto mantiene il link quasi invisibile nel testo:
+        # @Ruolo [.](https://discord.com/quests/ID)
+        # Discord continua comunque a ricevere il vero URL della Quest e puo
+        # renderizzare la relativa card interattiva.
+        masked_link = f"[.]({url})"
         allow_role = False
         if role is not None and settings.get("ping_role", True):
-            lines.append(role.mention)
+            content = f"{role.mention} {masked_link}"
             allow_role = not test
-        lines.append(url)
+        else:
+            content = masked_link
 
         kwargs = {
-            "content": "\n".join(lines),
+            "content": content,
             "allowed_mentions": discord.AllowedMentions(
                 roles=allow_role,
                 users=False,
