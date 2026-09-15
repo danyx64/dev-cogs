@@ -1,8 +1,8 @@
 {
   "author": ["danyx64"],
-  "description": "Swear Jar italiano per Red-DiscordBot: rilevamento anti-elusione piu preciso, protezione dai falsi positivi, conteggi correggibili, whitelist/blacklist, regole manuali, messaggi con placeholder, diagnostica e leaderboard /top.",
+  "description": "Swear Jar italiano per Red-DiscordBot: rilevamento anti-elusione piu preciso, varianti italiane comuni, bestemmie unite come porcodio/dioporco/diocane, protezione dai falsi positivi, conteggi correggibili, whitelist/blacklist, regole manuali, messaggi con placeholder, diagnostica e leaderboard /top.",
   "short": "Swear Jar italiano configurabile",
-  "install_msg": "SwearJar 4.1: esegui `[p]reload swearjar`. Puoi verificare una frase senza aumentare il conteggio con `[p]swear check <frase>`.",
+  "install_msg": "SwearJar 4.2: esegui `[p]reload swearjar`. Puoi verificare una frase senza aumentare il conteggio con `[p]swear check <frase>`.",
   "requirements": [],
   "tags": ["swearjar", "moderazione", "italiano", "leaderboard", "chat", "slash"],
   "type": "COG",
