@@ -115,6 +115,35 @@ class QuestTracker(QuestTrackerV50):
             out.append(item)
         return out
 
+    async def _mark_initial_state(self, guild: discord.Guild) -> int:
+        """Su un setup nuovo registra lo stato corrente senza inondare il canale."""
+        entries = await self._fetch_quests()
+        active = self._active_quests(entries)
+        conf = self.config.guild(guild)
+
+        families: List[str] = []
+        ids: List[str] = []
+        legacy: List[str] = []
+        for family, entry, config in active:
+            qid = self._quest_id(entry)
+            if family not in families:
+                families.append(family)
+            if qid and qid not in ids:
+                ids.append(qid)
+            key = _canonical_key(entry, config)
+            if key not in legacy:
+                legacy.append(key)
+
+        await conf.v51_sent_families.set(families[-1000:])
+        await conf.v51_sent_ids.set(ids[-1000:])
+        await conf.v51_delivery_migrated.set(True)
+        await conf.v50_seen_families.set(families[-500:])
+        await conf.v50_seen_ids.set(ids[-500:])
+        await conf.v50_migrated.set(True)
+        await conf.seen_keys.set(legacy[-500:])
+        await conf.initialized.set(True)
+        return len(active)
+
     async def _history_delivery_ledger(
         self,
         guild: discord.Guild,
