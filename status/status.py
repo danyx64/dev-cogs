@@ -10,7 +10,7 @@ class Status(commands.Cog):
     """Gestisce tutti gli status del bot: normali, streaming, ordine/random, durate e placeholder dinamici."""
 
     __author__ = "danyx64"
-    __version__ = "1.2.0"
+    __version__ = "1.3.0"
 
     VALID_TYPES = {"playing", "watching", "listening", "streaming", "custom"}
 
@@ -28,16 +28,13 @@ class Status(commands.Cog):
         self._task = None
         self._wake = asyncio.Event()
         self._last_random_index = None
-
-        # member_count di discord.py non e' usato come contatore "live":
-        # viene preso solo come baseline e poi tenuto aggiornato dagli eventi
-        # join/remove. In questo modo anche le uscite vengono riflesse subito.
-        self._member_counts = {}
         self._active_entry = None
         self._presence_refresh_task = None
-        self._presence_refresh_pending = False
 
     async def cog_load(self):
+        # Su reload non conserviamo nessuna baseline del conteggio membri:
+        # il runner riparte e renderizza lo status usando i dati correnti delle guild.
+        self._active_entry = None
         self._start_loop()
 
     def cog_unload(self):
@@ -51,27 +48,15 @@ class Status(commands.Cog):
             self._task = asyncio.create_task(self._runner())
 
     @staticmethod
-    def _baseline_member_count(guild: discord.Guild) -> int:
+    def _guild_member_count(guild: discord.Guild) -> int:
+        """Restituisce il totale corrente della guild senza mantenere contatori paralleli."""
         if guild.member_count is not None:
             return max(0, int(guild.member_count))
         return len(guild.members)
 
-    def _resync_member_counts(self):
-        self._member_counts = {
-            guild.id: self._baseline_member_count(guild)
-            for guild in self.bot.guilds
-        }
-
-    def _tracked_member_count(self, guild: discord.Guild) -> int:
-        count = self._member_counts.get(guild.id)
-        if count is None:
-            count = self._baseline_member_count(guild)
-            self._member_counts[guild.id] = count
-        return count
-
     def _placeholder_values(self):
         guilds = list(self.bot.guilds)
-        member_count = sum(self._tracked_member_count(guild) for guild in guilds)
+        member_count = sum(self._guild_member_count(guild) for guild in guilds)
         human_count = sum(1 for guild in guilds for member in guild.members if not member.bot)
         bot_count = sum(1 for guild in guilds for member in guild.members if member.bot)
         channel_count = sum(len(guild.channels) for guild in guilds)
@@ -128,17 +113,15 @@ class Status(commands.Cog):
         await self._apply_entry(self._active_entry)
 
     def _schedule_presence_refresh(self):
-        self._presence_refresh_pending = True
+        # Un solo refresh pendente: tutti gli eventi ravvicinati vengono accorpati.
         if self._presence_refresh_task is None or self._presence_refresh_task.done():
             self._presence_refresh_task = asyncio.create_task(self._debounced_presence_refresh())
 
     async def _debounced_presence_refresh(self):
         try:
-            while self._presence_refresh_pending:
-                self._presence_refresh_pending = False
-                # Raggruppa join/leave ravvicinati per non martellare change_presence.
-                await asyncio.sleep(2)
-                await self._refresh_current_presence()
+            # Evita di martellare change_presence quando entrano/escono piu utenti insieme.
+            await asyncio.sleep(5)
+            await self._refresh_current_presence()
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -162,7 +145,6 @@ class Status(commands.Cog):
 
     async def _runner(self):
         await self.bot.wait_until_ready()
-        self._resync_member_counts()
 
         while True:
             try:
@@ -210,38 +192,29 @@ class Status(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        # Corregge eventuali eventi persi durante una disconnessione/reconnect.
-        self._resync_member_counts()
+        # Dopo reconnect ripubblica lo status usando il conteggio corrente.
         self._schedule_presence_refresh()
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
-        guild_id = member.guild.id
-        if guild_id not in self._member_counts:
-            # L'evento arriva dopo che discord.py ha aggiornato lo stato della guild.
-            self._member_counts[guild_id] = self._baseline_member_count(member.guild)
-        else:
-            self._member_counts[guild_id] += 1
         self._schedule_presence_refresh()
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
-        guild_id = member.guild.id
-        if guild_id not in self._member_counts:
-            # Se il cog e' appena stato caricato usa il valore corrente come baseline.
-            self._member_counts[guild_id] = self._baseline_member_count(member.guild)
-        else:
-            self._member_counts[guild_id] = max(0, self._member_counts[guild_id] - 1)
+        # Manteniamo anche il listener classico per compatibilita e refresh rapido.
+        self._schedule_presence_refresh()
+
+    @commands.Cog.listener()
+    async def on_raw_member_remove(self, payload):
+        # Questo evento arriva anche quando il membro non e' presente nella cache.
         self._schedule_presence_refresh()
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild):
-        self._member_counts[guild.id] = self._baseline_member_count(guild)
         self._schedule_presence_refresh()
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild):
-        self._member_counts.pop(guild.id, None)
         self._schedule_presence_refresh()
 
     @commands.group(name="status", invoke_without_command=True)
@@ -261,7 +234,7 @@ class Status(commands.Cog):
             f"`{p}status add streaming 90 Live su Hobby MC`\n"
             f"`{p}status addstream 60 https://www.twitch.tv/4vv0c4t0 Live su Hobby MC`\n"
             f"`{p}status mode order` oppure `{p}status mode random`\n"
-            f"`{p}status recount` per forzare il ricalcolo membri\n"
+            f"`{p}status recount` per forzare il refresh del conteggio\n"
             f"`{p}status placeholders`\n"
             f"`{p}status enable`"
         )
@@ -270,14 +243,14 @@ class Status(commands.Cog):
     async def status_placeholders(self, ctx: commands.Context):
         await ctx.send(
             "**Placeholder dinamici**\n"
-            "`{member_count}` / `{members}` -> membri totali nelle guild del bot\n"
+            "`{member_count}` / `{members}` -> membri totali correnti nelle guild del bot\n"
             "`{human_count}` -> membri non-bot visibili in cache\n"
             "`{bot_count}` -> bot visibili in cache\n"
             "`{guild_count}` / `{server_count}` -> numero server\n"
             "`{channel_count}` -> canali totali\n"
             "`{user_count}` -> utenti unici visibili al bot\n"
             "`{bot_name}` -> nome del bot\n\n"
-            "`{member_count}` viene aggiornato subito sia sui join sia sui leave."
+            "`{member_count}` non usa piu un contatore parallelo: viene ricalcolato dai dati correnti delle guild."
         )
 
     @status.command(name="add")
@@ -397,7 +370,6 @@ class Status(commands.Cog):
     async def status_enable(self, ctx: commands.Context):
         if not await self.config.statuses():
             return await ctx.send("Aggiungi almeno uno status prima di abilitare il ciclo.")
-        self._resync_member_counts()
         await self.config.enabled.set(True)
         self._notify_loop()
         await ctx.send("Ciclo status **abilitato**.")
@@ -417,14 +389,13 @@ class Status(commands.Cog):
 
     @status.command(name="recount", aliases=["refreshcount", "countrefresh"])
     async def status_recount(self, ctx: commands.Context):
-        """Risincronizza il conteggio membri e aggiorna subito la presenza corrente."""
-        self._resync_member_counts()
+        """Ricalcola il conteggio corrente e aggiorna subito la presenza."""
         if self._active_entry:
             await self._refresh_current_presence()
         else:
             self._notify_loop()
         count = self._placeholder_values()["member_count"]
-        await ctx.send(f"Conteggio membri risincronizzato: **{count}**.")
+        await ctx.send(f"Conteggio membri aggiornato: **{count}**.")
 
     @status.command(name="show")
     async def status_show(self, ctx: commands.Context):
@@ -435,6 +406,6 @@ class Status(commands.Cog):
             f"Attivo: **{'si' if data.get('enabled') else 'no'}**\n"
             f"Modalita: **{data.get('mode')}**\n"
             f"Status configurati: **{len(data.get('statuses', []))}**\n"
-            f"Membri tracciati: **{values['member_count']}**\n"
+            f"Membri correnti: **{values['member_count']}**\n"
             f"Twitch predefinito: <{data.get('default_stream_url')}>"
         )
