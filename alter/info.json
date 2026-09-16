@@ -1,10 +1,10 @@
 {
   "author": ["danyx64"],
-  "description": "Alter v1.1.0 per Red-DiscordBot: intercetta i messaggi in un canale configurato, li ripubblica tramite un singolo webhook usando nome e avatar dell'autore e applica una modalita selezionabile. Include random, spoiler, spoiler per parola, spoiler casuale, mock, reverse, wordreverse, shuffle, redact, typo, stutter, leet, ROT13, Base64, binary, Morse, original e fixed. Il webhook viene creato e ricreato automaticamente quando necessario.",
-  "install_msg": "Alter v1.1.0 installato. Configura con [p]alter setup #canale. Usa [p]alter modes per vedere tutte le modalita e [p]alter mode random per scegliere un effetto casuale a ogni messaggio. [p]alter mode fixed usa il testo configurato con [p]alter messaggio <testo>. Verifica con [p]alter test e [p]alter status. Il bot necessita Manage Webhooks, Manage Messages e View Channel nel canale configurato.",
-  "short": "Webhook proxy con nome/avatar utente ed effetti messaggio selezionabili o random.",
-  "end_user_data_statement": "Questo cog salva per server l'ID del canale configurato, l'ID del webhook Alter, lo stato attivo/disattivo, la modalita selezionata e il template del messaggio fixed. Non salva il contenuto dei messaggi degli utenti.",
+  "description": "Alter v1.2.0 per Red-DiscordBot: intercetta i messaggi in un canale configurato, li ripubblica tramite un singolo webhook usando nome/avatar dell'autore e applica sempre una trasformazione. Include molte modalita locali, spoiler che modificano prima il testo, modalita fixed e frasi custom illimitate nominabili e configurabili nel random.",
+  "install_msg": "Alter v1.2.0 installato. Configura con [p]alter setup #canale. Usa [p]alter modes per tutte le modalita, [p]alter mode random per effetti casuali e [p]alter messaggio <testo> per la modalita fixed. Le frasi custom si gestiscono con [p]alter frase add <nome> <testo>, [p]alter frase lista, [p]alter frase usa <nome> e [p]alter frase random <nome> on/off. Ogni nuova frase custom entra nel random per default. Il bot necessita Manage Webhooks, Manage Messages e View Channel nel canale configurato.",
+  "short": "Webhook proxy con effetti sempre alterati e frasi custom illimitate.",
+  "end_user_data_statement": "Questo cog salva per server l'ID del canale configurato, l'ID del webhook Alter, lo stato attivo/disattivo, la modalita, il template fixed e le frasi custom configurate dagli amministratori. Non salva il contenuto dei messaggi degli utenti.",
   "min_bot_version": "3.5.0",
   "requirements": [],
-  "tags": ["webhook", "proxy", "messages", "utility", "random", "spoiler", "effects"]
+  "tags": ["webhook", "proxy", "messages", "utility", "fun", "spoiler", "random", "custom"]
 }
