@@ -1,10 +1,10 @@
 {
   "author": ["danyx64"],
-  "description": "QuestTracker v8.0.0 standalone per Red-DiscordBot: prefisso .quest, messaggio custom con ruolo/link automatico, filtro Italia, polling ogni 15 secondi e tre sorgenti in priorita: account probe/selfbot opzionale, DiscordQuest + regioni, discord-api-diff.",
-  "install_msg": "QuestTracker v8.0.0 installato. Mantiene le vecchie configurazioni grazie allo stesso Config identifier storico. Configura con [p]quest setup #canale [@ruolo], personalizza con [p]quest messaggio e controlla le fonti con [p]quest fonti. Il Markdown [Apri la Quest](quest) viene convertito automaticamente nel link reale. Source 1 si configura dal bot owner con [p]quest selfbot token; Source 2 usa DiscordQuest + regioni; Source 3 usa discord-api-diff.",
-  "short": "QuestTracker standalone con messaggio custom, ruolo e tre sorgenti.",
-  "end_user_data_statement": "Questo cog salva configurazione del server, ID di canale/ruolo, template del messaggio, impostazioni regionali e identificatori delle Quest gia viste. L'eventuale token Source 1 viene salvato nello storage API condiviso di Red e non nella configurazione del server.",
+  "description": "QuestTracker v8.1.0 per Red-DiscordBot: prefisso .quest, messaggio custom con ruolo/link automatico, filtro Italia e tre sorgenti in priorita. Unifica la stessa Quest tra selfbot/account probe, DiscordQuest e discord-api-diff, anche quando compare con alias ID diversi, per evitare notifiche duplicate.",
+  "install_msg": "QuestTracker v8.1.0 installato. Mantiene le vecchie configurazioni grazie allo stesso Config identifier storico. Configura con [p]quest setup #canale [@ruolo], personalizza con [p]quest messaggio e controlla le fonti con [p]quest fonti. Usa [p]quest tutte per tutte le Quest attive con stato Italia (✅/❌/❔), [p]quest italiane per quelle confermate in Italia e [p]quest reinvia ID per l'invio forzato. Source 1 si configura dal bot owner con [p]quest selfbot token; Source 2 usa DiscordQuest + regioni; Source 3 usa discord-api-diff.",
+  "short": "QuestTracker con dedupe cross-source, liste Italia e invio forzato.",
+  "end_user_data_statement": "Questo cog salva configurazione del server, ID di canale/ruolo, template del messaggio, impostazioni regionali e identificatori/famiglie delle Quest gia viste. L'eventuale token Source 1 viene salvato nello storage API condiviso di Red e non nella configurazione del server.",
   "min_bot_version": "3.5.0",
   "requirements": [],
-  "tags": ["discord", "quests", "quest", "notifications", "utility", "roles", "italy", "region"]
+  "tags": ["discord", "quests", "quest", "notifications", "utility", "roles", "italy", "region", "dedupe"]
 }
