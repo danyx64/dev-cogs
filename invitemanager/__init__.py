@@ -1,4 +1,4 @@
-from .invitemanager import InviteManager
+from .fixed import InviteManager
 
 
 async def setup(bot):
