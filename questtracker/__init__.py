@@ -1,4 +1,4 @@
-from .v70 import QuestTracker
+from .v80 import QuestTracker
 
 
 async def setup(bot):
