@@ -131,8 +131,12 @@ class QuestTracker(QuestTrackerV80):
 
         aliases: List[str] = []
         for entry in (left, right):
-            for alias in [*_alias_ids(entry), _quest_id(entry)]:
-                if alias and alias not in aliases:
+            candidate_aliases = [str(v) for v in entry.get("_alias_ids") or [] if v]
+            qid = _quest_id(entry)
+            if qid:
+                candidate_aliases.append(qid)
+            for alias in candidate_aliases:
+                if alias not in aliases:
                     aliases.append(alias)
         result["_alias_ids"] = aliases
         result["_dedupe_family"] = _family_key(result)
