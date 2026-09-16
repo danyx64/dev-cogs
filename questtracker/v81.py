@@ -14,23 +14,24 @@ from .v80 import (
     _quest_config,
     _quest_id,
     _quest_name,
+    _quest_url,
 )
 
 
 # v8.1 deliberately does NOT redefine existing v8 commands such as
-# `.quest attive` / `.quest active` or `.quest reinvia`.  Those inherited
+# `.quest attive` / `.quest active` or `.quest reinvia`. Those inherited
 # commands automatically use the overridden `_fetch_all()` below, so they get
 # the new cross-source dedupe without registering duplicate command aliases.
-# Only the two genuinely new subcommands are attached here.  Removing them
+# Only the two genuinely new subcommands are attached here. Removing them
 # first makes module reloads idempotent.
 for _command_name in ("tutte", "italiane"):
     QuestTrackerV80.quest.remove_command(_command_name)
 
 
 class QuestTracker(QuestTrackerV80):
-    """QuestTracker v8.1.1: catalogo unificato e dedupe tra tutte le sorgenti."""
+    """QuestTracker v8.1.2: catalogo unificato, dedupe e liste cliccabili."""
 
-    __version__ = "8.1.1"
+    __version__ = "8.1.2"
 
     SOURCE_LABELS = {
         "source1-selfbot": "S1",
@@ -225,15 +226,21 @@ class QuestTracker(QuestTrackerV80):
             return "❌"
         return "❔"
 
+    @staticmethod
+    def _markdown_link_text(value: str) -> str:
+        return value.replace("\\", "\\\\").replace("[", "\\[").replace("]", "\\]")
+
     @classmethod
     def _catalog_line(cls, entry: Dict[str, Any], *, show_verdict: bool) -> str:
         qid = _quest_id(entry)
         name = _quest_name(entry).replace("\n", " ")[:90]
+        link_name = cls._markdown_link_text(name)
+        quest_link = _quest_url(qid)
         aliases = cls._alias_ids(entry)
         alias_note = f" · {len(aliases)} ID uniti" if len(aliases) > 1 else ""
         source_note = cls._source_summary(entry)
         prefix = cls._italy_mark(entry) + " " if show_verdict else "✅ "
-        return f"{prefix}**{name}** — `{qid}` · `{source_note}`{alias_note}"
+        return f"{prefix}[{link_name}]({quest_link}) — `{qid}` · `{source_note}`{alias_note}"
 
     async def _send_catalog_pages(
         self,
