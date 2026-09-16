@@ -32,7 +32,7 @@ class Alter(commands.Cog):
     """Sostituisce i messaggi in un canale usando un webhook con nome/avatar dell'autore."""
 
     __author__ = "danyx64"
-    __version__ = "1.0.0"
+    __version__ = "1.0.1"
 
     def __init__(self, bot: Red):
         self.bot = bot
@@ -57,14 +57,10 @@ class Alter(commands.Cog):
         return lock
 
     @staticmethod
-    def _bot_member(channel: discord.TextChannel) -> Optional[discord.Member]:
-        return channel.guild.me
-
-    @classmethod
-    def _missing_permissions(cls, channel: discord.TextChannel) -> list[str]:
-        me = cls._bot_member(channel)
+    def _missing_permissions(channel: discord.TextChannel) -> list[str]:
+        me = channel.guild.me
         if me is None:
-            return ["Manage Webhooks", "Manage Messages"]
+            return ["Manage Webhooks", "Manage Messages", "View Channel"]
         perms = channel.permissions_for(me)
         missing = []
         if not perms.manage_webhooks:
@@ -108,19 +104,17 @@ class Alter(commands.Cog):
         return webhook
 
     async def _ensure_webhook(self, channel: discord.TextChannel) -> Optional[discord.Webhook]:
-        guild_id = channel.guild.id
-        async with self._lock_for(guild_id):
+        async with self._lock_for(channel.guild.id):
             conf = self.config.guild(channel.guild)
-            webhook_id = await conf.webhook_id()
-            webhook = await self._find_webhook(channel, webhook_id)
+            webhook = await self._find_webhook(channel, await conf.webhook_id())
             if webhook is not None:
                 return webhook
 
             missing = self._missing_permissions(channel)
             if missing:
                 log.warning(
-                    "Alter cannot recreate webhook in guild %s channel %s; missing: %s",
-                    guild_id,
+                    "Alter cannot create webhook in guild %s channel %s; missing: %s",
+                    channel.guild.id,
                     channel.id,
                     ", ".join(missing),
                 )
@@ -131,7 +125,7 @@ class Alter(commands.Cog):
             except (discord.Forbidden, discord.HTTPException) as exc:
                 log.warning(
                     "Alter failed to create webhook in guild %s channel %s: %r",
-                    guild_id,
+                    channel.guild.id,
                     channel.id,
                     exc,
                 )
@@ -139,14 +133,10 @@ class Alter(commands.Cog):
 
     async def _delete_configured_webhook(self, guild: discord.Guild) -> None:
         conf = self.config.guild(guild)
-        channel_id = await conf.channel_id()
+        channel = guild.get_channel((await conf.channel_id()) or 0)
         webhook_id = await conf.webhook_id()
         self._webhook_cache.pop(guild.id, None)
-        if not channel_id or not webhook_id:
-            return
-
-        channel = guild.get_channel(channel_id)
-        if not isinstance(channel, discord.TextChannel):
+        if not isinstance(channel, discord.TextChannel) or not webhook_id:
             return
 
         webhook = await self._find_webhook(channel, webhook_id)
@@ -169,7 +159,6 @@ class Alter(commands.Cog):
 
     @staticmethod
     def _render_message(template: str, message: discord.Message) -> str:
-        attachments = " ".join(attachment.url for attachment in message.attachments)
         values = {
             "content": message.content or "",
             "name": message.author.display_name,
@@ -178,13 +167,12 @@ class Alter(commands.Cog):
             "id": str(message.author.id),
             "channel": message.channel.mention,
             "server": message.guild.name if message.guild else "",
-            "attachments": attachments,
+            "attachments": " ".join(a.url for a in message.attachments),
         }
         rendered = template
         for key, value in values.items():
             rendered = rendered.replace("{" + key + "}", str(value))
-        rendered = rendered.replace("\\n", "\n").strip()
-        return rendered[:2000]
+        return rendered.replace("\\n", "\n").strip()[:2000]
 
     async def _send_as_author(
         self,
@@ -193,11 +181,10 @@ class Alter(commands.Cog):
         content: str,
     ) -> None:
         username = message.author.display_name.strip()[:80] or message.author.name[:80]
-        avatar_url = str(message.author.display_avatar.url)
         await webhook.send(
             content=content or "\u200b",
             username=username,
-            avatar_url=avatar_url,
+            avatar_url=str(message.author.display_avatar.url),
             allowed_mentions=discord.AllowedMentions.none(),
             wait=True,
         )
@@ -210,12 +197,10 @@ class Alter(commands.Cog):
             return
 
         conf = self.config.guild(message.guild)
-        if not await conf.enabled():
-            return
-        if message.channel.id != await conf.channel_id():
+        if not await conf.enabled() or message.channel.id != await conf.channel_id():
             return
 
-        # Non intercettare i comandi del bot: `.alter ...` deve restare sempre gestibile.
+        # I comandi del bot non vengono alterati, quindi `.alter ...` resta sempre utilizzabile.
         try:
             ctx = await self.bot.get_context(message)
             if ctx.valid:
@@ -227,8 +212,10 @@ class Alter(commands.Cog):
         if webhook is None:
             return
 
-        template = str(await conf.message_template() or DEFAULT_MESSAGE)
-        content = self._render_message(template, message)
+        content = self._render_message(
+            str(await conf.message_template() or DEFAULT_MESSAGE),
+            message,
+        )
 
         try:
             await message.delete()
@@ -247,29 +234,20 @@ class Alter(commands.Cog):
             await self._send_as_author(webhook, message, content)
             return
         except discord.NotFound:
-            # Il webhook puo essere stato cancellato tra il controllo e l'invio.
+            # Webhook eliminato tra controllo e invio: lo ricreiamo una volta.
             self._webhook_cache.pop(message.guild.id, None)
             await conf.webhook_id.set(None)
         except (discord.Forbidden, discord.HTTPException) as exc:
-            log.warning(
-                "Alter webhook send failed in guild %s: %r",
-                message.guild.id,
-                exc,
-            )
+            log.warning("Alter webhook send failed in guild %s: %r", message.guild.id, exc)
             return
 
-        # Un solo retry con ricreazione automatica.
         retry_webhook = await self._ensure_webhook(message.channel)
         if retry_webhook is None:
             return
         try:
             await self._send_as_author(retry_webhook, message, content)
         except (discord.Forbidden, discord.NotFound, discord.HTTPException) as exc:
-            log.warning(
-                "Alter webhook retry failed in guild %s: %r",
-                message.guild.id,
-                exc,
-            )
+            log.warning("Alter webhook retry failed in guild %s: %r", message.guild.id, exc)
 
     @commands.group(name="alter", invoke_without_command=True)
     @commands.guild_only()
@@ -280,7 +258,7 @@ class Alter(commands.Cog):
     @alter.command(name="setup", aliases=["canale", "channel"])
     @commands.admin_or_permissions(manage_guild=True)
     async def alter_setup(self, ctx: commands.Context, channel: discord.TextChannel) -> None:
-        """Imposta il canale e crea automaticamente il webhook Alter."""
+        """Imposta il canale e crea/riusa automaticamente il webhook Alter."""
         missing = self._missing_permissions(channel)
         if missing:
             return await ctx.send(
@@ -289,13 +267,24 @@ class Alter(commands.Cog):
 
         conf = self.config.guild(ctx.guild)
         old_channel_id = await conf.channel_id()
-        if old_channel_id and old_channel_id != channel.id:
+
+        # Stesso canale: riusa il webhook esistente; se e stato cancellato, lo ricrea.
+        if old_channel_id == channel.id:
+            webhook = await self._ensure_webhook(channel)
+            if webhook is None:
+                return await ctx.send("❌ Non sono riuscito a creare/trovare il webhook Alter.")
+            await conf.enabled.set(True)
+            return await ctx.send(
+                f"✅ Alter attivato in {channel.mention}. Webhook riutilizzato: **{webhook.name}** (`{webhook.id}`)."
+            )
+
+        # Cambio canale: elimina il vecchio webhook Alter prima di crearne uno nuovo.
+        if old_channel_id:
             await self._delete_configured_webhook(ctx.guild)
 
         await conf.channel_id.set(channel.id)
         await conf.webhook_id.set(None)
         self._webhook_cache.pop(ctx.guild.id, None)
-
         webhook = await self._ensure_webhook(channel)
         if webhook is None:
             return await ctx.send("❌ Non sono riuscito a creare il webhook Alter.")
@@ -317,7 +306,7 @@ class Alter(commands.Cog):
                 f"```\n{current}\n```\n"
                 "Placeholder: `{content}` `{name}` `{username}` `{mention}` `{id}` "
                 "`{channel}` `{server}` `{attachments}`.\n"
-                "Reset: `.alter messaggio reset`. Per andare a capo puoi usare `\\n`."
+                "Reset: `.alter messaggio reset`. Per andare a capo usa `\\n`."
             )
 
         template = str(testo).strip()
@@ -343,8 +332,7 @@ class Alter(commands.Cog):
     async def alter_test(self, ctx: commands.Context) -> None:
         """Invia un test usando il tuo nome/avatar senza eliminare il comando."""
         conf = self.config.guild(ctx.guild)
-        channel_id = await conf.channel_id()
-        channel = ctx.guild.get_channel(channel_id or 0)
+        channel = ctx.guild.get_channel((await conf.channel_id()) or 0)
         if not isinstance(channel, discord.TextChannel):
             return await ctx.send("❌ Prima usa `.alter setup #canale`.")
 
@@ -352,8 +340,7 @@ class Alter(commands.Cog):
         if webhook is None:
             return await ctx.send("❌ Webhook Alter non disponibile.")
 
-        template = str(await conf.message_template() or DEFAULT_MESSAGE)
-        content = self._render_message(template, ctx.message)
+        content = self._render_message(str(await conf.message_template() or DEFAULT_MESSAGE), ctx.message)
         try:
             await self._send_as_author(webhook, ctx.message, content)
         except (discord.Forbidden, discord.NotFound, discord.HTTPException) as exc:
@@ -363,14 +350,13 @@ class Alter(commands.Cog):
     @alter.command(name="on", aliases=["enable", "attiva"])
     @commands.admin_or_permissions(manage_guild=True)
     async def alter_on(self, ctx: commands.Context) -> None:
-        channel_id = await self.config.guild(ctx.guild).channel_id()
-        channel = ctx.guild.get_channel(channel_id or 0)
+        conf = self.config.guild(ctx.guild)
+        channel = ctx.guild.get_channel((await conf.channel_id()) or 0)
         if not isinstance(channel, discord.TextChannel):
             return await ctx.send("❌ Prima usa `.alter setup #canale`.")
-        webhook = await self._ensure_webhook(channel)
-        if webhook is None:
+        if await self._ensure_webhook(channel) is None:
             return await ctx.send("❌ Non riesco a creare/trovare il webhook Alter.")
-        await self.config.guild(ctx.guild).enabled.set(True)
+        await conf.enabled.set(True)
         await ctx.send("✅ Alter attivato.")
 
     @alter.command(name="off", aliases=["disable", "disattiva"])
@@ -388,6 +374,7 @@ class Alter(commands.Cog):
         if isinstance(channel, discord.TextChannel):
             webhook = await self._find_webhook(channel, settings.get("webhook_id"))
         template = str(settings.get("message_template") or DEFAULT_MESSAGE)
+
         embed = discord.Embed(title="Alter", colour=discord.Colour.blurple())
         embed.add_field(
             name="Stato",
@@ -401,7 +388,7 @@ class Alter(commands.Cog):
         )
         embed.add_field(
             name="Webhook",
-            value=(f"✅ `{webhook.id}`" if webhook else "❌ assente / da ricreare"),
+            value=f"✅ `{webhook.id}`" if webhook else "❌ assente / da ricreare",
             inline=True,
         )
         embed.add_field(name="Messaggio", value=f"```\n{template[:950]}\n```", inline=False)
