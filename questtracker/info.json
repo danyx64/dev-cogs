@@ -1,9 +1,9 @@
 {
   "author": ["danyx64"],
-  "description": "QuestTracker v6.2.0 per Red-DiscordBot: polling ogni 15 secondi, quattro fonti Quest, automatico solo con prova regionale positiva per l'Italia, attesa persistente per gli ID inizialmente unknown, dedupe per famiglia, baseline anti-replay e force manuale per ID.",
-  "install_msg": "QuestTracker v6.2.0 installato. Mantiene canale, ruolo, ping e messaggio personalizzato. Al primo ciclo crea una baseline delle Quest gia attive e non ne reinvia nessuna. Da quel momento invia automaticamente solo nuovi ID confermati disponibili in Italia (IT/EU/EEA/global oppure blacklist che non esclude IT). Gli unknown aspettano dati regionali migliori; i non-IT non vengono auto-inviati. Usa `[p]quest reinvia <id>` per forzare manualmente qualsiasi ID presente nei feed.",
-  "short": "Discord Quest tracker italiano con auto-invio solo su evidenza regionale positiva.",
-  "end_user_data_statement": "Questo cog salva solo configurazione del server, ID di canale/ruolo, template del messaggio Quest, impostazioni QuestTracker e identificatori delle Quest osservate o inviate. Non memorizza dati personali degli utenti.",
+  "description": "QuestTracker v7.0.0 per Red-DiscordBot: probe Italia read-only su /quests/@me come sorgente primaria, fallback DiscordQuest + regioni e discord-api-diff, polling ogni 15 secondi, dedupe per famiglia, baseline anti-replay e messaggio completamente personalizzabile con link Quest automatico.",
+  "install_msg": "QuestTracker v7.0.0 installato. Mantiene le vecchie configurazioni di canale, ruolo, ping e message_template grazie allo stesso Config identifier storico. La sorgente primaria puo essere il probe Italia configurato dal bot owner con [p]quest probe token; se non e disponibile, il tracker usa DiscordQuest + regioni e discord-api-diff come fallback. Il messaggio resta modificabile con [p]quest messaggio e supporta anche Markdown automatico come [Apri la Quest](quest), dove il cog sostituisce quest con il link reale. Usa [p]quest status e [p]quest fonti per controllare lo stato.",
+  "short": "Discord Quest tracker italiano con probe primario e fallback pubblici.",
+  "end_user_data_statement": "Questo cog salva configurazione del server, ID di canale/ruolo, template del messaggio Quest, impostazioni QuestTracker e identificatori delle Quest osservate o inviate. L'eventuale token del probe viene salvato nello storage API condiviso di Red e non nella configurazione del server.",
   "min_bot_version": "3.5.0",
   "requirements": [],
   "tags": ["discord", "quests", "quest", "notifications", "utility", "roles", "italy", "region"]
