@@ -1,4 +1,4 @@
-from .invitetracker import InviteTracker
+from .fixed import InviteTracker
 
 
 async def setup(bot):
