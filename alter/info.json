@@ -1,10 +1,10 @@
 {
   "author": ["danyx64"],
-  "description": "Alter per Red-DiscordBot: intercetta i messaggi in un canale configurato, elimina l'originale e invia un messaggio personalizzabile tramite un singolo webhook usando nome e avatar dell'autore. Il webhook viene creato e ricreato automaticamente quando necessario.",
-  "install_msg": "Alter installato. Configura con [p]alter setup #canale, imposta il testo con [p]alter messaggio <testo> e verifica con [p]alter test / [p]alter status. Il bot necessita Manage Webhooks e Manage Messages nel canale configurato.",
-  "short": "Webhook proxy con nome/avatar utente e messaggio custom.",
-  "end_user_data_statement": "Questo cog salva per server l'ID del canale configurato, l'ID del webhook Alter, lo stato attivo/disattivo e il template del messaggio. Non salva il contenuto dei messaggi degli utenti.",
+  "description": "Alter v1.1.0 per Red-DiscordBot: intercetta i messaggi in un canale configurato, li ripubblica tramite un singolo webhook usando nome e avatar dell'autore e applica una modalita selezionabile. Include random, spoiler, spoiler per parola, spoiler casuale, mock, reverse, wordreverse, shuffle, redact, typo, stutter, leet, ROT13, Base64, binary, Morse, original e fixed. Il webhook viene creato e ricreato automaticamente quando necessario.",
+  "install_msg": "Alter v1.1.0 installato. Configura con [p]alter setup #canale. Usa [p]alter modes per vedere tutte le modalita e [p]alter mode random per scegliere un effetto casuale a ogni messaggio. [p]alter mode fixed usa il testo configurato con [p]alter messaggio <testo>. Verifica con [p]alter test e [p]alter status. Il bot necessita Manage Webhooks, Manage Messages e View Channel nel canale configurato.",
+  "short": "Webhook proxy con nome/avatar utente ed effetti messaggio selezionabili o random.",
+  "end_user_data_statement": "Questo cog salva per server l'ID del canale configurato, l'ID del webhook Alter, lo stato attivo/disattivo, la modalita selezionata e il template del messaggio fixed. Non salva il contenuto dei messaggi degli utenti.",
   "min_bot_version": "3.5.0",
   "requirements": [],
-  "tags": ["webhook", "proxy", "messages", "utility", "moderation"]
+  "tags": ["webhook", "proxy", "messages", "utility", "random", "spoiler", "effects"]
 }
