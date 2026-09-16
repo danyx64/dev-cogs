@@ -17,22 +17,20 @@ from .v80 import (
 )
 
 
-# Replace the v8 commands whose behaviour changes in v8.1.
-for _command_name in (
-    "attive",
-    "active",
-    "reinvia",
-    "resend",
-    "forza",
-    "force",
-):
+# v8.1 deliberately does NOT redefine existing v8 commands such as
+# `.quest attive` / `.quest active` or `.quest reinvia`.  Those inherited
+# commands automatically use the overridden `_fetch_all()` below, so they get
+# the new cross-source dedupe without registering duplicate command aliases.
+# Only the two genuinely new subcommands are attached here.  Removing them
+# first makes module reloads idempotent.
+for _command_name in ("tutte", "italiane"):
     QuestTrackerV80.quest.remove_command(_command_name)
 
 
 class QuestTracker(QuestTrackerV80):
-    """QuestTracker v8.1: catalogo unificato e dedupe tra tutte le sorgenti."""
+    """QuestTracker v8.1.1: catalogo unificato e dedupe tra tutte le sorgenti."""
 
-    __version__ = "8.1.0"
+    __version__ = "8.1.1"
 
     SOURCE_LABELS = {
         "source1-selfbot": "S1",
@@ -55,7 +53,7 @@ class QuestTracker(QuestTrackerV80):
 
     @classmethod
     def _entry_preference_score(cls, entry: Dict[str, Any]) -> int:
-        """Choose the richest/most authoritative representative of a duplicate group."""
+        """Sceglie il record piu completo/autorevole di un gruppo duplicato."""
         score = cls._availability_rank(entry) * 10000
         sources = set(entry.get("_sources") or [])
         if "source1-selfbot" in sources:
@@ -66,7 +64,14 @@ class QuestTracker(QuestTrackerV80):
             score += 100
 
         config = _quest_config(entry)
-        for key in ("application", "messages", "starts_at", "expires_at", "rewards_config", "rewards"):
+        for key in (
+            "application",
+            "messages",
+            "starts_at",
+            "expires_at",
+            "rewards_config",
+            "rewards",
+        ):
             if config.get(key):
                 score += 10
         score += min(len(str(entry)), 5000) // 250
@@ -74,16 +79,23 @@ class QuestTracker(QuestTrackerV80):
 
     @staticmethod
     def _dedupe_identity(entry: Dict[str, Any]) -> str:
-        """Return a safe cross-source identity.
+        """Identita cross-source sicura per la stessa Quest/campagna.
 
-        Exact IDs are already merged by v8. Here we additionally collapse the
-        same campaign when two sources expose different IDs but the campaign
-        metadata is strong enough to identify the same Quest family.
+        La v8 base ha gia unito gli ID identici. Qui uniamo anche ID diversi
+        soltanto quando i metadati della campagna sono abbastanza forti.
         """
         qid = _quest_id(entry)
         config = _quest_config(entry)
-        messages = config.get("messages") if isinstance(config.get("messages"), dict) else {}
-        app = config.get("application") if isinstance(config.get("application"), dict) else {}
+        messages = (
+            config.get("messages")
+            if isinstance(config.get("messages"), dict)
+            else {}
+        )
+        app = (
+            config.get("application")
+            if isinstance(config.get("application"), dict)
+            else {}
+        )
         app_id = str(app.get("id") or config.get("application_id") or "").strip()
         name = re.sub(
             r"\s+",
@@ -93,12 +105,22 @@ class QuestTracker(QuestTrackerV80):
         starts = str(config.get("starts_at") or "").strip()
         expires = str(config.get("expires_at") or "").strip()
 
-        # Do not family-dedupe sparse records: unrelated incomplete entries must
-        # never collapse into one another merely because fields are missing.
         strong_signals = sum(bool(value) for value in (app_id, name, starts, expires))
         if name and strong_signals >= 3:
             return "family:" + _family_key(entry)
         return "id:" + qid
+
+    @staticmethod
+    def _alias_ids(entry: Dict[str, Any]) -> List[str]:
+        aliases: List[str] = []
+        for value in entry.get("_alias_ids") or []:
+            value = str(value).strip()
+            if value and value not in aliases:
+                aliases.append(value)
+        qid = _quest_id(entry)
+        if qid and qid not in aliases:
+            aliases.append(qid)
+        return aliases
 
     @classmethod
     def _combine_duplicates(
@@ -106,7 +128,7 @@ class QuestTracker(QuestTrackerV80):
         left: Dict[str, Any],
         right: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """Combine duplicate Quest records while preserving IDs and source evidence."""
+        """Unisce duplicati conservando ID alias e prove delle sorgenti."""
         if cls._entry_preference_score(right) > cls._entry_preference_score(left):
             preferred, fallback = right, left
         else:
@@ -115,7 +137,11 @@ class QuestTracker(QuestTrackerV80):
         result: Dict[str, Any] = dict(fallback)
         for key, value in preferred.items():
             if key == "config" and isinstance(value, dict):
-                old_config = result.get("config") if isinstance(result.get("config"), dict) else {}
+                old_config = (
+                    result.get("config")
+                    if isinstance(result.get("config"), dict)
+                    else {}
+                )
                 merged_config = dict(old_config)
                 merged_config.update(value)
                 result["config"] = merged_config
@@ -125,17 +151,14 @@ class QuestTracker(QuestTrackerV80):
         sources: List[str] = []
         for entry in (left, right):
             for source in entry.get("_sources") or []:
+                source = str(source)
                 if source not in sources:
-                    sources.append(str(source))
+                    sources.append(source)
         result["_sources"] = sources
 
         aliases: List[str] = []
         for entry in (left, right):
-            candidate_aliases = [str(v) for v in entry.get("_alias_ids") or [] if v]
-            qid = _quest_id(entry)
-            if qid:
-                candidate_aliases.append(qid)
-            for alias in candidate_aliases:
+            for alias in cls._alias_ids(entry):
                 if alias not in aliases:
                     aliases.append(alias)
         result["_alias_ids"] = aliases
@@ -143,8 +166,8 @@ class QuestTracker(QuestTrackerV80):
         return result
 
     async def _fetch_all(self, *, force_selfbot: bool = False) -> List[Dict[str, Any]]:
-        # v8 first merges exact Quest IDs across S1/S2/S3 and calculates the
-        # Italy verdict. v8.1 then collapses same-family aliases across IDs.
+        # v8 prima fonde gli ID esatti tra S1/S2/S3 e calcola il verdetto Italia.
+        # v8.1 poi comprime eventuali alias con ID diversi della stessa campagna.
         exact_id_catalog = await super()._fetch_all(force_selfbot=force_selfbot)
 
         deduped: Dict[str, Dict[str, Any]] = {}
@@ -156,16 +179,15 @@ class QuestTracker(QuestTrackerV80):
             existing = deduped.get(identity)
             if existing is None:
                 copy = dict(entry)
-                qid = _quest_id(copy)
-                copy["_alias_ids"] = [qid] if qid else []
+                copy["_alias_ids"] = self._alias_ids(copy)
                 copy["_dedupe_family"] = _family_key(copy)
                 deduped[identity] = copy
                 continue
 
             duplicate_groups.add(identity)
-            before = set(existing.get("_alias_ids") or [])
+            before = set(self._alias_ids(existing))
             combined = self._combine_duplicates(existing, entry)
-            after = set(combined.get("_alias_ids") or [])
+            after = set(self._alias_ids(combined))
             duplicate_aliases += max(0, len(after - before))
             deduped[identity] = combined
 
@@ -207,7 +229,7 @@ class QuestTracker(QuestTrackerV80):
     def _catalog_line(cls, entry: Dict[str, Any], *, show_verdict: bool) -> str:
         qid = _quest_id(entry)
         name = _quest_name(entry).replace("\n", " ")[:90]
-        aliases = [str(v) for v in entry.get("_alias_ids") or [] if v]
+        aliases = cls._alias_ids(entry)
         alias_note = f" · {len(aliases)} ID uniti" if len(aliases) > 1 else ""
         source_note = cls._source_summary(entry)
         prefix = cls._italy_mark(entry) + " " if show_verdict else "✅ "
@@ -241,7 +263,10 @@ class QuestTracker(QuestTrackerV80):
             if show_verdict:
                 embed.add_field(
                     name="Legenda Italia",
-                    value="✅ disponibile · ❌ non disponibile · ❔ disponibilita non confermata",
+                    value=(
+                        "✅ disponibile · ❌ non disponibile · "
+                        "❔ disponibilita non confermata"
+                    ),
                     inline=False,
                 )
             embed.set_footer(
@@ -255,10 +280,7 @@ class QuestTracker(QuestTrackerV80):
                 allowed_mentions=discord.AllowedMentions.none(),
             )
 
-    @QuestTrackerV80.quest.command(
-        name="tutte",
-        aliases=["all", "catalogo", "catalog"],
-    )
+    @QuestTrackerV80.quest.command(name="tutte")
     async def quest_all(self, ctx: commands.Context) -> None:
         """Lista tutte le Quest attive del catalogo unificato S1+S2+S3."""
         entries = await self._all_active_catalog()
@@ -269,10 +291,7 @@ class QuestTracker(QuestTrackerV80):
             show_verdict=True,
         )
 
-    @QuestTrackerV80.quest.command(
-        name="italiane",
-        aliases=["italy", "it", "attive", "active"],
-    )
+    @QuestTrackerV80.quest.command(name="italiane")
     async def quest_italian(self, ctx: commands.Context) -> None:
         """Lista solo le Quest attive confermate disponibili in Italia."""
         entries = [
@@ -285,42 +304,4 @@ class QuestTracker(QuestTrackerV80):
             entries,
             title="Quest attive disponibili in Italia",
             show_verdict=False,
-        )
-
-    @QuestTrackerV80.quest.command(
-        name="reinvia",
-        aliases=["resend", "forza", "force"],
-    )
-    @commands.admin_or_permissions(manage_guild=True)
-    async def quest_resend(self, ctx: commands.Context, quest_id: str) -> None:
-        """Invia forzatamente una Quest, anche se gia vista o non marcata Italia."""
-        wanted = str(quest_id).strip()
-        entries = await self._fetch_all(force_selfbot=True)
-        entry = next(
-            (
-                item
-                for item in entries
-                if wanted == _quest_id(item)
-                or wanted in {str(v) for v in item.get("_alias_ids") or []}
-            ),
-            None,
-        )
-        if entry is None:
-            return await ctx.send("❌ Quest non trovata nelle tre sorgenti.")
-
-        channel_id = await self.config.guild(ctx.guild).channel_id()
-        channel = ctx.guild.get_channel(channel_id or 0)
-        if not isinstance(channel, discord.TextChannel):
-            return await ctx.send("❌ Canale Quest non configurato.")
-
-        await self._send_quest(channel, ctx.guild, entry, test=False)
-        canonical_id = _quest_id(entry)
-        aliases = [str(v) for v in entry.get("_alias_ids") or [] if v]
-        alias_text = (
-            f" (gruppo deduplicato: {len(aliases)} ID)"
-            if len(aliases) > 1
-            else ""
-        )
-        await ctx.send(
-            f"✅ Quest `{canonical_id}` inviata forzatamente in {channel.mention}{alias_text}."
         )
