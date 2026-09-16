@@ -1,6 +1,6 @@
 import asyncio
-from datetime import timedelta
-from typing import Dict, List, Optional, Tuple
+from datetime import datetime, timedelta
+from typing import Dict, List, Tuple
 
 import discord
 
@@ -18,9 +18,9 @@ class ServerLogger(BaseServerLogger):
 
     def __init__(self, bot):
         super().__init__(bot)
-        self._audit_snapshot_cache: Dict[int, Tuple[discord.utils.utcnow, List[discord.AuditLogEntry]]] = {}
+        self._audit_snapshot_cache: Dict[int, Tuple[datetime, List[discord.AuditLogEntry]]] = {}
         self._audit_snapshot_locks: Dict[int, asyncio.Lock] = {}
-        self._audit_blocked_until: Dict[int, object] = {}
+        self._audit_blocked_until: Dict[int, datetime] = {}
 
     async def _get_audit_snapshot(self, guild: discord.Guild) -> List[discord.AuditLogEntry]:
         """Fetch audit logs at most once every few seconds per guild.
