@@ -260,17 +260,26 @@ function extractContext(payload) {
   ].filter(Boolean);
 
   return {
-    guildId: firstScalar(candidates, ["guild_id", "guildId"], ["guild", "id"]),
-    channelId: firstScalar(candidates, ["channel_id", "channelId"], ["channel", "id"]),
+    guildId: firstScalar(candidates, ["guild_id"], ["guildId"], ["guild", "id"]),
+    channelId: firstScalar(candidates, ["channel_id"], ["channelId"], ["channel", "id"]),
     userId: firstScalar(
       candidates,
-      ["user_id", "userId", "author_id", "authorId"],
+      ["user_id"],
+      ["userId"],
+      ["author_id"],
+      ["authorId"],
       ["user", "id"],
       ["author", "id"],
       ["member", "user", "id"]
     ),
-    content: firstScalar(candidates, ["content", "message_content", "text"]) || "",
-    roleIds: firstArray(candidates, ["role_ids", "roles"], ["member", "roles"]),
+    content:
+      firstScalar(candidates, ["content"], ["message_content"], ["text"]) || "",
+    roleIds: firstArray(
+      candidates,
+      ["role_ids"],
+      ["roles"],
+      ["member", "roles"]
+    ),
   };
 }
 
