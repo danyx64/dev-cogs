@@ -2,12 +2,12 @@
   "author": ["danyx64"],
   "description": "Gestisce la configurazione del Worker Cloudflare usato dall'esperimento Discord AutoMod/Guild Policy basato su applicazione.",
   "short": "Controllo Worker per AutoMod app-driven",
-  "install_msg": "AppAutoMod installato. Configura prima le credenziali con \`[p]set api appautomod worker_url,<URL> control_token,<TOKEN>\` in DM col bot, poi usa \`[p]appautomod status\` e \`[p]appautomod sync\`.",
-  "requirements": ["aiohttp"],
+  "install_msg": "AppAutoMod installato. Configura prima le credenziali con [p]set api appautomod worker_url,<URL> control_token,<TOKEN> in DM col bot, poi usa [p]appautomod status e [p]appautomod sync.",
+  "requirements": [],
   "tags": ["automod", "moderation", "cloudflare", "worker", "discord"],
   "min_bot_version": "3.5.0",
   "hidden": false,
   "disabled": false,
   "type": "COG",
-  "end_user_data_statement": "Il cog conserva configurazioni di moderazione per server (parole, domini, regex e ID di eccezioni). Il Worker può conservare temporaneamente payload diagnostici Discord in Cloudflare KV secondo la propria configurazione di retention."
+  "end_user_data_statement": "Il cog conserva configurazioni di moderazione per server (parole, domini, regex e ID di eccezioni). Il Worker puo conservare temporaneamente payload diagnostici Discord in Cloudflare KV secondo la propria configurazione di retention."
 }
