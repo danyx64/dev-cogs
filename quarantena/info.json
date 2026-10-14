@@ -1,0 +1,18 @@
+{
+  "author": [
+    "danyx64"
+  ],
+  "name": "Quarantena",
+  "short": "Quarantena automatica per parole e nickname vietati",
+  "description": "Controlla messaggi, ingressi e modifiche del nickname. Rinomina l'utente, assegna un ruolo e prova a cancellarne i messaggi visibili al bot.",
+  "install_msg": "Carica con [p]load quarantena, poi usa [p]quarantena ruolo <ID> e [p]quarantena aggiungi <parola>.",
+  "requirements": [],
+  "tags": [
+    "moderation",
+    "automod",
+    "quarantine"
+  ],
+  "min_bot_version": "3.5.0",
+  "hidden": false,
+  "disabled": false
+}
