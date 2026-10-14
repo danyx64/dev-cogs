@@ -153,7 +153,7 @@ class Quarantena(commands.Cog):
     @commands.guild_only()
     @commands.admin_or_permissions(administrator=True)
     async def quarantena(self, ctx):
-        await ctx.send("Comandi: ruolo <ID>, aggiungi <frase>, rimuovi <frase>, lista, blocca <ID ruolo> <ID canale>, attiva, disattiva, stato")
+        await ctx.send("Comandi: ruolo <ID>, aggiungi <frase>, rimuovi <frase>, lista, blocca/sblocca/consenti <ID ruolo> <ID canale>, attiva, disattiva, stato")
 
     @quarantena.command(name="ruolo")
     async def role(self, ctx, role_id: int):
@@ -224,6 +224,58 @@ class Quarantena(commands.Cog):
         except (discord.Forbidden, discord.HTTPException):
             return await ctx.send("Non riesco a impostare i permessi.")
         await ctx.send(f"Permessi di {role.mention} negati su {channel.name}. Altri ruoli possono consentire l'accesso.")
+
+    @quarantena.command(name="sblocca")
+    async def unblock_channel(self, ctx, role_id: int, channel_id: int):
+        """Remove the channel-specific denies set for a role."""
+        role = ctx.guild.get_role(role_id)
+        channel = ctx.guild.get_channel(channel_id)
+        if role is None or role.is_default() or channel is None:
+            return await ctx.send("ID ruolo o canale non valido.")
+        me = ctx.guild.me
+        if not me or not channel.permissions_for(me).manage_roles:
+            return await ctx.send("Il bot non ha Gestisci ruoli su questo canale.")
+        overwrite = channel.overwrites_for(role)
+        for name, _ in discord.Permissions.all_channel():
+            setattr(overwrite, name, None)
+        try:
+            await channel.set_permissions(
+                role, overwrite=overwrite, reason=f"Quarantena sblocca: {ctx.author.id}"
+            )
+        except (discord.Forbidden, discord.HTTPException):
+            return await ctx.send("Non riesco a ripristinare i permessi: verifica i permessi del bot.")
+        await ctx.send(
+            f"Permessi espliciti di {role.mention} azzerati su {channel.name}. "
+            "Ora eredita quelli da @everyone e dagli altri ruoli."
+        )
+
+    @quarantena.command(name="consenti")
+    async def allow_channel(self, ctx, role_id: int, channel_id: int):
+        """Allow standard access and chat for a role on one channel."""
+        role = ctx.guild.get_role(role_id)
+        channel = ctx.guild.get_channel(channel_id)
+        if role is None or role.is_default() or channel is None:
+            return await ctx.send("ID ruolo o canale non valido.")
+        me = ctx.guild.me
+        if not me or not channel.permissions_for(me).manage_roles:
+            return await ctx.send("Il bot non ha Gestisci ruoli su questo canale.")
+        overwrite = channel.overwrites_for(role)
+        for name, _ in discord.Permissions.all_channel():
+            setattr(overwrite, name, None)
+        overwrite.view_channel = True
+        if isinstance(channel, (discord.TextChannel, discord.CategoryChannel)):
+            overwrite.send_messages = True
+            overwrite.read_message_history = True
+        if isinstance(channel, discord.VoiceChannel):
+            overwrite.connect = True
+            overwrite.speak = True
+        try:
+            await channel.set_permissions(
+                role, overwrite=overwrite, reason=f"Quarantena consenti: {ctx.author.id}"
+            )
+        except (discord.Forbidden, discord.HTTPException):
+            return await ctx.send("Non riesco a concedere accesso: verifica i permessi del bot.")
+        await ctx.send(f"Accesso standard consentito a {role.mention} su {channel.name}.")
 
     @quarantena.command(name="stato")
     async def status(self, ctx):
