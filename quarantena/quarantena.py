@@ -81,6 +81,14 @@ class Quarantena(commands.Cog):
             return
         data = await self.config.guild(message.guild).all()
         if data["enabled"] and self.matches(message.content, data["words"]):
+            # Delete the violating message immediately, even if the user
+            # was previously quarantined or the history sweep cannot run.
+            try:
+                await message.delete()
+            except discord.NotFound:
+                pass
+            except (discord.Forbidden, discord.HTTPException):
+                LOG.warning("Cannot delete violating message %s", message.id)
             await self.isolate(message.author, "Parola vietata nel messaggio")
 
     @commands.Cog.listener()
