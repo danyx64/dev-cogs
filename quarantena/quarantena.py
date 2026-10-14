@@ -32,7 +32,7 @@ class Quarantena(commands.Cog):
         async with self._locks[guild.id]:
             cfg = self.config.guild(guild)
             data = await cfg.all()
-            if not data["enabled"] or member.id in data["isolated"]:
+            if not data["enabled"]:
                 return
             role = guild.get_role(data["role_id"])
             me = guild.me
@@ -48,27 +48,30 @@ class Quarantena(commands.Cog):
                     await member.edit(nick=f"User{number}", reason=reason)
                 except (discord.Forbidden, discord.HTTPException):
                     LOG.exception("Rinomina fallita per %s", member.id)
-            # Replace all removable roles with the quarantine role in one request.
-            # @everyone is implicit; managed roles and roles above the bot
-            # cannot be removed through the Discord API.
-            retained = [
+            # discord.py Member.edit does not accept a roles argument.
+            # Use add_roles/remove_roles, and retry even for previously isolated users.
+            removable = [
                 existing for existing in member.roles
                 if existing != guild.default_role
                 and existing != role
+                and not existing.managed
+                and existing < me.top_role
+            ]
+            try:
+                if role not in member.roles:
+                    await member.add_roles(role, reason=reason)
+                if removable:
+                    await member.remove_roles(*removable, reason=reason)
+            except (discord.Forbidden, discord.HTTPException):
+                LOG.exception("Aggiornamento ruoli fallito per %s", member.id)
+                return
+            retained = [
+                existing for existing in member.roles
+                if existing != guild.default_role and existing != role
                 and (existing.managed or existing >= me.top_role)
             ]
-            desired_roles = retained + [role]
-            try:
-                await member.edit(roles=desired_roles, reason=reason)
-            except (discord.Forbidden, discord.HTTPException):
-                LOG.exception("Sostituzione ruoli fallita per %s", member.id)
-                return
             if retained:
-                LOG.warning(
-                    "Utente %s: alcuni ruoli non rimovibili sono rimasti: %s",
-                    member.id,
-                    [existing.id for existing in retained],
-                )
+                LOG.warning("Ruoli non rimovibili per %s: %s", member.id, [r.id for r in retained])
             async with cfg.isolated() as isolated:
                 if member.id not in isolated:
                     isolated.append(member.id)
