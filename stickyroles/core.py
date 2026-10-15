@@ -12,7 +12,7 @@ import discord
 
 log = logging.getLogger("red.danyx64.stickyroles")
 MEMBER_DEFAULTS = dict(
-    known=False, roles=[], joined="", present=False, returning=False,
+    known=False, roles=[], nick=None, nick_known=False, joined="", present=False, returning=False,
     pending=False, retry_needed=False, updated=0.0, last_result={},
 )
 
@@ -86,7 +86,7 @@ class RoleMemory:
         if not joined:
             return data  # An incomplete member must not overwrite a real snapshot.
         if not data["known"]:
-            data.update(known=True, roles=role_ids(member), joined=joined,
+            data.update(known=True, roles=role_ids(member), nick=getattr(member, "nick", None), nick_known=True, joined=joined,
                         present=True, returning=False, pending=False, updated=time.time())
         elif not same_session(data["joined"], joined) or not data["present"]:
             data.update(joined=joined, present=True, returning=True, pending=True, retry_needed=False)
@@ -112,7 +112,8 @@ class RoleMemory:
                     self.schedule(member)
                 return
             if data["known"] and session(member):
-                data.update(roles=role_ids(member), updated=time.time())
+                data.update(roles=role_ids(member), nick=getattr(member, "nick", None),
+                            nick_known=True, updated=time.time())
                 await self.write(member.guild.id, member.id, data)
 
     async def joined(self, member):
@@ -155,7 +156,8 @@ class RoleMemory:
             self.cancel((guild_id, user_id))
             # Never overwrite an updated role snapshot with a stale leave event.
             if member is not None and not data["known"]:
-                data.update(known=True, roles=role_ids(member), joined=session(member), updated=time.time())
+                data.update(known=True, roles=role_ids(member), nick=getattr(member, "nick", None),
+                            nick_known=True, joined=session(member), updated=time.time())
             if data["known"]:
                 data["present"] = False
                 # pending preserves the ORIGINAL roles if they leave mid-restore.
@@ -226,6 +228,17 @@ class RoleMemory:
                     result["errors"].append(f"{role_id}: membro o ruolo non piu presente")
                 except discord.HTTPException as exc:
                     result["errors"].append(f"{role_id}: HTTP {exc.status}")
+        if data.get("nick_known") and getattr(member, "nick", None) != data.get("nick"):
+            if not getattr(me.guild_permissions, "manage_nicknames", False):
+                result["skipped"].append("Nickname: permesso Gestisci soprannomi mancante")
+            elif member.top_role >= me.top_role:
+                result["skipped"].append("Nickname: gerarchia insufficiente")
+            else:
+                try:
+                    await member.edit(nick=data["nick"], reason="Sticky Names: ripristino al rientro")
+                    result["nickname_restored"] = True
+                except discord.HTTPException as exc:
+                    result["errors"].append(f"Nickname: HTTP {exc.status}")
         return member, result
 
     async def _worker(self, guild, user_id, joined):
@@ -285,7 +298,8 @@ class RoleMemory:
                 return None
             if not same_session(session(fresh), session(member)):
                 return None
-            data.update(pending=False, retry_needed=False, roles=role_ids(fresh), updated=time.time())
+            data.update(pending=False, retry_needed=False, roles=role_ids(fresh),
+                        nick=getattr(fresh, "nick", None), nick_known=True, updated=time.time())
             await self.write(guild.id, user_id, data)
             return fresh
 
@@ -304,7 +318,8 @@ class RoleMemory:
                 return False
             if force:
                 self.cancel((member.guild.id, member.id))
-            data.update(known=True, roles=role_ids(member), joined=session(member),
+            data.update(known=True, roles=role_ids(member), nick=getattr(member, "nick", None),
+                        nick_known=True, joined=session(member),
                         present=True, pending=False, retry_needed=False, updated=time.time())
             await self.write(member.guild.id, member.id, data)
             return True
