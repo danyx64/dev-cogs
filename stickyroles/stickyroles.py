@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 import asyncio
-import inspect
-import ast
 import io
 import json
 import logging
@@ -20,7 +18,7 @@ log = logging.getLogger("red.danyx64.stickyroles")
 class StickyRoles(commands.Cog):
     """Memorizza i ruoli dei membri e li ripristina al rientro."""
 
-    __version__ = "1.0.2"
+    __version__ = "1.0.3"
 
     def __init__(self, bot):
         self.bot = bot
@@ -224,31 +222,16 @@ class StickyRoles(commands.Cog):
 
     @sr.command(name="conflitti", aliases=["conflicts"])
     async def conflicts(self, ctx):
-        """Controlla i cog CARICATI su questo Red, non altri bot o plugin non caricati."""
-        lines = ["Controllo cog caricati (lettura sorgenti e integrazioni):"]
+        """Fast compatibility report: never inspect/parse cog source on the event loop."""
+        integrated = {"AutoRole", "Quarantena", "ReactionRoles", "NitroRole", "HierarchyAdmin", "OwnerControl"}
+        lines = ["Controllo rapido dei cog caricati (nessuna scansione bloccante dei sorgenti):"]
         for name, cog in sorted(self.bot.cogs.items()):
             if cog is self:
                 continue
-            parts = []
-            for cls in type(cog).__mro__:
-                try:
-                    parts.append(inspect.getsource(cls))
-                except (TypeError, OSError):
-                    pass
-            source = "\n".join(parts)
-            try:
-                tree = ast.parse(source)
-                writers = [n for n in ast.walk(tree) if isinstance(n, ast.Call) and (
-                    (isinstance(n.func, ast.Attribute) and n.func.attr in ("add_roles", "remove_roles"))
-                    or any(k.arg == "roles" for k in n.keywords)
-                )]
-            except (SyntaxError, ValueError):
-                writers = []
-            if not writers:
+            if name not in integrated and not getattr(cog, "__sticky_roles_compatible__", False):
                 continue
-            status = "integrato" if getattr(cog, "__sticky_roles_compatible__", False) else "da verificare"
-            joins = any(event == "on_member_join" for event, _ in cog.get_listeners())
-            lines.append(f"{name}: {status}; listener ingresso: {joins}")
-        lines.append("AutoRole deve risultare integrato. Con altri bot Discord non esiste una precedenza API: "
-                     "disabilita i loro autorole per chi rientra. Le correzioni iniziali sono limitate a 7 secondi, non un ciclo infinito.")
+            status = "integrato" if getattr(cog, "__sticky_roles_compatible__", False) else "NON aggiornato"
+            lines.append(f"{name}: {status}")
+        lines.append("Nota: questo elenco non e un audit di tutti i cog/bot esterni. " 
+                     "AutoRole, Quarantena e gli altri gestori devono essere aggiornati e ricaricati.")
         await self._say(ctx, "\n".join(lines))
