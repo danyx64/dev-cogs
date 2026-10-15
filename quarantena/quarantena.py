@@ -156,8 +156,66 @@ class Quarantena(commands.Cog):
     @commands.guild_only()
     @commands.admin_or_permissions(administrator=True)
     async def quarantena(self, ctx):
-        await ctx.send("Comandi: ruolo <ID>, aggiungi <frase>, rimuovi <frase>, lista, blocca/sblocca/consenti <ID ruolo> <ID canale>, attiva, disattiva, stato")
+        embed = discord.Embed(title="Quarantena | Comandi",
+            description="Gestione della quarantena: comandi amministrativi.", colour=discord.Colour.orange())
+        embed.add_field(name="Utenti", value=(
+            ".quarantena isola @utente - mette subito un membro in quarantena\n"
+            ".quarantena libera @utente - rimuove ruolo e ID dalla lista"), inline=False)
+        embed.add_field(name="Parole", value=(
+            ".quarantena aggiungi <frase> / .quarantena rimuovi <frase>\n"
+            ".quarantena lista"), inline=False)
+        embed.add_field(name="Impostazioni", value=(
+            ".quarantena ruolo <ID>\n.quarantena attiva / .quarantena disattiva\n"
+            ".quarantena stato"), inline=False)
+        embed.add_field(name="Canali", value=(
+            ".quarantena blocca <ID ruolo> <ID canale>\n"
+            ".quarantena sblocca <ID ruolo> <ID canale>\n"
+            ".quarantena consenti <ID ruolo> <ID canale>"), inline=False)
+        await ctx.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
 
+    @quarantena.command(name="isola", aliases=["isolate"])
+    async def manual_isolate(self, ctx, member: discord.Member):
+        """Applica subito la quarantena a un membro."""
+        if not await self.config.guild(ctx.guild).enabled():
+            return await ctx.send("Attiva prima con .quarantena attiva.")
+        if member.bot or member.id == ctx.guild.owner_id or member.guild_permissions.administrator:
+            return await ctx.send("Bot, proprietario e amministratori sono esclusi.")
+        role = ctx.guild.get_role(await self.config.guild(ctx.guild).role_id())
+        me = ctx.guild.me
+        if (me is None or role is None or role.is_default() or role.managed
+                or not me.guild_permissions.manage_roles or role >= me.top_role
+                or member.top_role >= me.top_role):
+            return await ctx.send("Ruolo o gerarchia non validi: controlla Gestire ruoli.")
+        await self.isolate(member, f"Quarantena manuale da {ctx.author.id}")
+        saved = await self.config.guild(ctx.guild).isolated()
+        try:
+            fresh = await ctx.guild.fetch_member(member.id)
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+            fresh = None
+        if member.id not in saved or fresh is None or role not in fresh.roles:
+            return await ctx.send("Quarantena non completata: controlla i permessi e i log.")
+        await ctx.send(f"Utente {member.id} messo in quarantena. ID registrato.")
+
+    @quarantena.command(name="libera", aliases=["release", "deisola"])
+    async def manual_release(self, ctx, member: discord.Member):
+        """Rimuove il ruolo quarantena e dimentica la relativa voce."""
+        cfg = self.config.guild(ctx.guild)
+        role = ctx.guild.get_role(await cfg.role_id())
+        me = ctx.guild.me
+        if role and role in member.roles:
+            if me is None or not me.guild_permissions.manage_roles or role.managed or role >= me.top_role:
+                return await ctx.send("Gerarchia o permessi insufficienti per togliere il ruolo.")
+            try:
+                await member.remove_roles(role, reason=f"Fine quarantena manuale da {ctx.author.id}")
+            except (discord.Forbidden, discord.HTTPException):
+                return await ctx.send("Discord ha rifiutato la rimozione del ruolo: ID conservato.")
+        async with cfg.isolated() as ids:
+            if member.id in ids:
+                ids.remove(member.id)
+        await ctx.send(
+            f"Quarantena rimossa da {member.id}. I ruoli precedenti non vengono ripristinati. "
+            "Se nome/nickname contiene parole vietate, potrebbe essere isolato nuovamente."
+        )
     @quarantena.command(name="ruolo")
     async def role(self, ctx, role_id: int):
         role = ctx.guild.get_role(role_id)
