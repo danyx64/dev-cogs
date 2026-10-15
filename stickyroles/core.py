@@ -253,8 +253,12 @@ class RoleMemory:
                 self.cancel((guild.id, user_id))
                 fresh, result = await self._apply_locked(guild, user_id, session(member), data)
                 data["last_result"] = result
-                if fresh is None:
+                if fresh is None or result["errors"]:
+                    # Do not replace a valid historical snapshot with a partial
+                    # restore just because another cog requested a role change.
+                    data["retry_needed"] = True
                     await self.write(guild.id, user_id, data)
+                    log.warning("Azione concorrente rinviata per %s/%s: %s", guild.id, user_id, result)
                     return None
             try:
                 fresh = await guild.fetch_member(user_id)

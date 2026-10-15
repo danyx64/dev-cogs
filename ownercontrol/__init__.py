@@ -1,4 +1,4 @@
-from .ownercontrol import OwnerControl
+from .sticky_compat import OwnerControl
 
 
 async def setup(bot):

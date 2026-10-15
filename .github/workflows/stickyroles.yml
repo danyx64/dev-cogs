@@ -15,6 +15,18 @@ jobs:
       - name: Unit tests (mock Discord, no token)
         run: python3 -m unittest discover -s stickyroles/tests -v
       - name: Compile new cog and integration adapters
-        run: python3 -m compileall -q stickyroles autorole/sticky_compat.py quarantena/sticky_compat.py reactionroles/sticky_compat.py nitrorole/sticky_compat.py
+        run: python3 -m compileall -q stickyroles autorole/sticky_compat.py quarantena/sticky_compat.py reactionroles/sticky_compat.py nitrorole/sticky_compat.py hierarchyadmin/sticky_compat.py ownercontrol/sticky_compat.py
       - name: Audit every cog for role mutation and join listeners
         run: python3 stickyroles/audit_repository.py
+  red-import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install reference Red version for import tests only
+        run: python -m pip install 'Red-DiscordBot==3.5.24'
+      - name: Check real Red Cog metaclasses and command groups
+        run: python stickyroles/smoke_red.py

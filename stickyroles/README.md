@@ -10,8 +10,8 @@ Se in Red la repository e registrata con il nome `main`:
 .repo update main
 .cog install main stickyroles
 .load stickyroles
-.cog update autorole quarantena reactionroles nitrorole
-.reload autorole quarantena reactionroles nitrorole
+.cog update autorole quarantena reactionroles nitrorole hierarchyadmin ownercontrol
+.reload autorole quarantena reactionroles nitrorole hierarchyadmin ownercontrol
 .sr attiva
 .sr stato
 .sr conflitti
@@ -40,6 +40,8 @@ Nei comandi di aggiornamento/ricaricamento includi **solo i cog che hai gia inst
 **Quarantena**: il vecchio esperimento `quarantena/sticky.py` e rimosso. Il file principale e le sue impostazioni restano invariati. Un piccolo adattatore termina prima il ripristino dei ruoli, cosi una successiva quarantena non viene annullata da un job ancora attivo. Non vengono aggiunti comandi sticky a `.quarantena`.
 
 **ReactionRoles / NitroRole**: le azioni esplicite sulle reazioni o sui boost vengono coordinate dopo il ripristino e poi memorizzate normalmente. Sticky Roles non congela i ruoli per tutta la permanenza e non impedisce le successive modifiche dello staff.
+
+**HierarchyAdmin / OwnerControl**: i comandi manuali di assegnazione/rimozione ruoli attendono il ripristino prima di procedere. I comandi diagnostici restano di sola lettura.
 
 I controlli del rientro sono finiti (subito, dopo 2 secondi, dopo altri 5). Eventuali assegnazioni concorrenti da bot non integrati possono quindi essere corrette per circa 7 secondi, **non prima che Discord le renda effettive**. Non esiste una priorita assoluta fra bot diversi: per autorole esterni/tardivi va configurata l'esclusione dei membri di ritorno. Non vengono alterate funzioni globali di discord.py o di altri bot.
 
