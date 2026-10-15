@@ -155,6 +155,30 @@ class Tests(unittest.IsolatedAsyncioTestCase):
         await self.memory.left(self.guild.id, member.id, member)
         return self.guild.member(roles=current, joined=NOW + timedelta(days=1))
 
+    async def test_rest_scan_saves_nickname_when_cache_is_empty(self):
+        member = self.guild.member(roles=(1,))
+        member.nick = "REST Nickname"
+        # REST list contains this member even when it is absent from local cache.
+        original_get = self.guild.get_member
+        self.guild.get_member = lambda uid: None
+        try:
+            self.assertTrue(await self.memory.snapshot(member))
+        finally:
+            self.guild.get_member = original_get
+        data = await self.saved()
+        self.assertEqual(data["nick"], "REST Nickname")
+        self.assertTrue(data["nick_known"])
+
+    async def test_old_snapshot_migrates_nickname_without_overwriting_roles(self):
+        member = self.guild.member(roles=(1,))
+        await self.memory.snapshot(member)
+        data = await self.saved()
+        data["nick_known"] = False
+        data.pop("nick", None)
+        await self.memory.write(1, 10, data)
+        member.nick = "Migrato"
+        self.assertTrue(await self.memory.snapshot(member))
+        self.assertEqual((await self.saved())["nick"], "Migrato")
     async def test_snapshot_all_roles_including_managed_but_not_everyone(self):
         await self.memory.snapshot(self.guild.member(roles=(1, 4, 5)))
         self.assertEqual((await self.saved())["roles"], [1, 4, 5])
