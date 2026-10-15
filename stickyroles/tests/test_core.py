@@ -184,6 +184,21 @@ class Tests(unittest.IsolatedAsyncioTestCase):
         await self.drain()
         self.assertEqual(self.guild.state[10][0], {1, 3})
         self.assertFalse((await self.saved())["pending"])
+    async def test_nickname_update_uses_event_after_not_stale_cache(self):
+        member = self.guild.member(roles=(1,))
+        await self.memory.snapshot(member)
+        # Cache still returns an old Member, while the gateway event is newer.
+        changed = self.guild.get_member(10)
+        changed.nick = "Nuovo nickname"
+        await self.memory.observe(changed)
+        self.assertEqual((await self.saved())["nick"], "Nuovo nickname")
+
+    async def test_snapshot_uses_provided_rest_nickname_not_stale_cache(self):
+        member = self.guild.member(roles=(1,))
+        fresh = self.guild.get_member(10)
+        fresh.nick = "Nickname API"
+        self.assertTrue(await self.memory.snapshot(fresh))
+        self.assertEqual((await self.saved())["nick"], "Nickname API")
     async def test_sticky_nickname_saved_and_restored_on_rejoin(self):
         member = self.guild.member(roles=(1,))
         member.nick = "Veterano"
