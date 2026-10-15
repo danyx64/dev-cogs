@@ -18,7 +18,7 @@ log = logging.getLogger("red.danyx64.stickyroles")
 class StickyRoles(commands.Cog):
     """Memorizza ruoli e nickname dei membri e li ripristina al rientro."""
 
-    __version__ = "1.1.1"
+    __version__ = "1.1.2"
 
     def __init__(self, bot):
         self.bot = bot
