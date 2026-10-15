@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import ast
 import io
 import json
 import logging
@@ -19,7 +20,7 @@ log = logging.getLogger("red.danyx64.stickyroles")
 class StickyRoles(commands.Cog):
     """Memorizza i ruoli dei membri e li ripristina al rientro."""
 
-    __version__ = "1.0.1"
+    __version__ = "1.0.2"
 
     def __init__(self, bot):
         self.bot = bot
@@ -235,7 +236,15 @@ class StickyRoles(commands.Cog):
                 except (TypeError, OSError):
                     pass
             source = "\n".join(parts)
-            if not any(word in source for word in ("add_roles", "remove_roles", "roles=", "roles =")):
+            try:
+                tree = ast.parse(source)
+                writers = [n for n in ast.walk(tree) if isinstance(n, ast.Call) and (
+                    (isinstance(n.func, ast.Attribute) and n.func.attr in ("add_roles", "remove_roles"))
+                    or any(k.arg == "roles" for k in n.keywords)
+                )]
+            except (SyntaxError, ValueError):
+                writers = []
+            if not writers:
                 continue
             status = "integrato" if getattr(cog, "__sticky_roles_compatible__", False) else "da verificare"
             joins = any(event == "on_member_join" for event, _ in cog.get_listeners())
