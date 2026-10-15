@@ -249,6 +249,12 @@ class RoleMemory:
         if not await self.active(guild):
             return member
         async with self.lock(guild.id, user_id):
+            # Prefer the current REST membership over a stale cached member.
+            try:
+                member = await guild.fetch_member(user_id)
+            except discord.HTTPException as exc:
+                log.warning("Role handoff member fetch failed %s/%s: %s", guild.id, user_id, exc)
+                return None
             data = await self._prepare_locked(member)
             if data["pending"]:
                 self.cancel((guild.id, user_id))
