@@ -307,12 +307,21 @@ class RoleMemory:
         if not await self.active(member.guild):
             return False
         async with self.lock(member.guild.id, member.id):
-            current = member.guild.get_member(member.id)
-            if current is None or session(current) != session(member):
+            # REST member scans do not require a populated member cache.
+            # Verify the membership timestamp against the persistent record
+            # instead of returning False when guild.get_member is unavailable.
+            joined = session(member)
+            if not joined:
                 return False
-            # Trust the explicitly supplied snapshot member (REST scan / gateway).
-            # Replacing it with a cached copy can silently erase nicknames.
-            data = await self._prepare_locked(member)
+            data = await self.read(member.guild.id, member.id)
+            if data["known"] and data["present"] and data["joined"] and not same_session(data["joined"], joined):
+                # A newer membership must be restored, not snapshotted.
+                data = await self._prepare_locked(member)
+                if data["pending"] and not force:
+                    self.schedule(member)
+                    return False
+            else:
+                data = await self._prepare_locked(member)
             if data["pending"] and not force:
                 self.schedule(member)
                 return False
