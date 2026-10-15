@@ -105,7 +105,7 @@ class RoleMemory:
             cached = member.guild.get_member(member.id)
             if cached is None or not same_session(session(cached), session(member)):
                 return
-            member = cached
+            # Gateway 'after' carries the changed nickname; the cache may lag.
             data = await self._prepare_locked(member)
             if data["pending"]:
                 if not data["retry_needed"]:
@@ -310,8 +310,8 @@ class RoleMemory:
             current = member.guild.get_member(member.id)
             if current is None or session(current) != session(member):
                 return False
-            if not force:
-                member = current
+            # Trust the explicitly supplied snapshot member (REST scan / gateway).
+            # Replacing it with a cached copy can silently erase nicknames.
             data = await self._prepare_locked(member)
             if data["pending"] and not force:
                 self.schedule(member)
