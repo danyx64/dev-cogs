@@ -16,9 +16,9 @@ log = logging.getLogger("red.danyx64.stickyroles")
 
 
 class StickyRoles(commands.Cog):
-    """Memorizza i ruoli dei membri e li ripristina al rientro."""
+    """Memorizza ruoli e nickname dei membri e li ripristina al rientro."""
 
-    __version__ = "1.0.3"
+    __version__ = "1.1.0"
 
     def __init__(self, bot):
         self.bot = bot
@@ -88,7 +88,7 @@ class StickyRoles(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_update(self, before, after):
-        if before.roles != after.roles:
+        if before.roles != after.roles or before.nick != after.nick:
             await self.memory.observe(after)
 
     @commands.Cog.listener()
@@ -191,6 +191,7 @@ class StickyRoles(commands.Cog):
         roles = [f"{ctx.guild.get_role(r).name if ctx.guild.get_role(r) else 'eliminato'} ({r})" for r in data["roles"]]
         await self._say(ctx, f"Utente {user_id}\nRuoli: " + (", ".join(roles) or "solo @everyone") +
                         f"\nPresente: {data['present']} | Rientro: {data['returning']} | In ripristino: {data['pending']}\n"
+                        f"Nickname salvato: {repr(data.get('nick')) if data.get('nick_known') else 'non ancora registrato'}\n"
                         f"Ultimo risultato: {json.dumps(data['last_result'], ensure_ascii=False)}")
 
     @sr.command(name="ripristina", aliases=["restore"])
@@ -216,7 +217,7 @@ class StickyRoles(commands.Cog):
         members = await self.config.all_members(ctx.guild)
         known = [d for d in members.values() if d.get("known")]
         await self._say(ctx, f"Sticky Roles v{self.__version__}\nAttivo: {await self._enabled(ctx.guild)}\n"
-                        f"Membri salvati: {len(known)} | In ripristino/da ritentare: {sum(d.get('pending', False) for d in known)}\n"
+                        f"Membri salvati: {len(known)} | Nickname salvati: {sum(d.get('nick_known', False) for d in known)} | In ripristino/da ritentare: {sum(d.get('pending', False) for d in known)}\n"
                         f"Members Intent: {self.bot.intents.members} | Gestire ruoli: {ctx.guild.me.guild_permissions.manage_roles}\n"
                         "Salva @everyone implicitamente; i ruoli gestiti, eliminati o sopra il bot non possono essere ripristinati.")
 
