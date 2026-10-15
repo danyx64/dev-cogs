@@ -171,6 +171,19 @@ class Tests(unittest.IsolatedAsyncioTestCase):
         await self.memory.joined(member)
         self.assertFalse(await self.memory.should_skip_autorole(member))
 
+    async def test_rest_join_timestamp_precision_does_not_block_restore(self):
+        member = await self.rejoin(roles=(1, 3), current=(2,))
+        # Discord Gateway vs REST can differ slightly in joined_at precision.
+        original_fetch = self.guild.fetch_member
+        async def rest_fetch(user_id):
+            result = await original_fetch(user_id)
+            result.joined_at += timedelta(milliseconds=600)
+            return result
+        self.guild.fetch_member = rest_fetch
+        await self.memory.joined(member)
+        await self.drain()
+        self.assertEqual(self.guild.state[10][0], {1, 3})
+        self.assertFalse((await self.saved())["pending"])
     async def test_returnee_blocks_autorole_before_listener(self):
         member = await self.rejoin()
         self.assertTrue(await self.memory.should_skip_autorole(member))
