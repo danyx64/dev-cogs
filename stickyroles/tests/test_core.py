@@ -187,7 +187,7 @@ class Tests(unittest.IsolatedAsyncioTestCase):
     async def test_sticky_nickname_saved_and_restored_on_rejoin(self):
         member = self.guild.member(roles=(1,))
         member.nick = "Veterano"
-        await self.memory.snapshot(member)
+        await self.memory.snapshot(member, force=True)
         data = await self.saved()
         self.assertEqual(data["nick"], "Veterano")
         self.assertTrue(data["nick_known"])
