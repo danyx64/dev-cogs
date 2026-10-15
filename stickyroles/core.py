@@ -5,6 +5,7 @@ import asyncio
 import logging
 import time
 import weakref
+from datetime import datetime
 from typing import Any
 
 import discord
@@ -23,6 +24,17 @@ def role_ids(member) -> list[int]:
 
 def session(member) -> str:
     return member.joined_at.isoformat() if member.joined_at is not None else ""
+
+def same_session(a: str, b: str) -> bool:
+    """Gateway and REST joined_at may differ in subsecond precision."""
+    if not a or not b:
+        return a == b
+    if a == b:
+        return True
+    try:
+        return abs((datetime.fromisoformat(a) - datetime.fromisoformat(b)).total_seconds()) < 2
+    except (ValueError, TypeError):
+        return False
 
 
 class RoleMemory:
@@ -76,7 +88,7 @@ class RoleMemory:
         if not data["known"]:
             data.update(known=True, roles=role_ids(member), joined=joined,
                         present=True, returning=False, pending=False, updated=time.time())
-        elif data["joined"] != joined or not data["present"]:
+        elif not same_session(data["joined"], joined) or not data["present"]:
             data.update(joined=joined, present=True, returning=True, pending=True, retry_needed=False)
             # Never take roles from the just-joined member here (often @everyone).
         else:
@@ -91,7 +103,7 @@ class RoleMemory:
         async with self.lock(member.guild.id, member.id):
             # Ignore queued events for an older membership or a departed member.
             cached = member.guild.get_member(member.id)
-            if cached is None or session(cached) != session(member):
+            if cached is None or not same_session(session(cached), session(member)):
                 return
             member = cached
             data = await self._prepare_locked(member)
@@ -136,9 +148,9 @@ class RoleMemory:
             current = guild.get_member(user_id)
             if current is not None:
                 # A rapid rejoin may have happened while this event was queued.
-                if member is None or session(current) != session(member):
+                if member is None or not same_session(session(current), session(member)):
                     return
-            if member is not None and data["known"] and data["joined"] != session(member):
+            if member is not None and data["known"] and not same_session(data["joined"], session(member)):
                 return
             self.cancel((guild_id, user_id))
             # Never overwrite an updated role snapshot with a stale leave event.
@@ -177,7 +189,7 @@ class RoleMemory:
         except discord.HTTPException as exc:
             result["errors"].append(f"Lettura membro: HTTP {exc.status}")
             return None, result
-        if session(member) != joined:
+        if not same_session(session(member), joined):
             result["errors"].append("Evento di una precedente permanenza: ignorato.")
             return None, result
         me = guild.me
@@ -224,7 +236,7 @@ class RoleMemory:
                 return
             async with limit, self.lock(guild.id, user_id):
                 data = await self.read(guild.id, user_id)
-                if not data["pending"] or not data["present"] or data["joined"] != joined:
+                if not data["pending"] or not data["present"] or not same_session(data["joined"], joined):
                     return
                 _, result = await self._apply_locked(guild, user_id, joined, data)
                 data["last_result"] = result
@@ -271,7 +283,7 @@ class RoleMemory:
                 fresh = await guild.fetch_member(user_id)
             except discord.HTTPException:
                 return None
-            if session(fresh) != session(member):
+            if not same_session(session(fresh), session(member)):
                 return None
             data.update(pending=False, retry_needed=False, roles=role_ids(fresh), updated=time.time())
             await self.write(guild.id, user_id, data)
