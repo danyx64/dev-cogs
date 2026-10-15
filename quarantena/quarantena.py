@@ -87,7 +87,7 @@ class Quarantena(commands.Cog):
                 async for msg in channel.history(limit=None):
                     if msg.author.id == member.id:
                         try:
-                            await msg.delete(reason="Quarantena automatica")
+                            await msg.delete()
                         except discord.NotFound:
                             pass
                         except (discord.Forbidden, discord.HTTPException):
