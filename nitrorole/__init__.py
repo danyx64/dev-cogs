@@ -4,7 +4,7 @@
 from redbot.core.bot import Red
 from redbot.core.utils import get_end_user_data_statement_or_raise
 
-from .nitrorole import NitroRole
+from .sticky_compat import NitroRole
 
 __red_end_user_data_statement__ = get_end_user_data_statement_or_raise(__file__)
 

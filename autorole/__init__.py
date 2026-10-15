@@ -1,6 +1,6 @@
 from redbot.core.bot import Red
 
-from .autorole import AutoRole
+from .sticky_compat import AutoRole
 
 
 async def setup(bot: Red):

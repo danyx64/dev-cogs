@@ -1,0 +1,20 @@
+name: Sticky Roles tests and role-writer audit
+on:
+  push:
+    branches: [main, work/stickyroles-split]
+    paths: ['**.py', 'stickyroles/**', '.github/workflows/stickyroles.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unit tests (mock Discord, no token)
+        run: python3 -m unittest discover -s stickyroles/tests -v
+      - name: Compile new cog and integration adapters
+        run: python3 -m compileall -q stickyroles autorole/sticky_compat.py quarantena/sticky_compat.py reactionroles/sticky_compat.py nitrorole/sticky_compat.py
+      - name: Audit every cog for role mutation and join listeners
+        run: python3 stickyroles/audit_repository.py

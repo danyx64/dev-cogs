@@ -1,0 +1,13 @@
+{
+  "author": ["danyx64"],
+  "name": "Sticky Roles",
+  "short": "Ruoli persistenti al rientro, comandi .sr e priorita su AutoRole.",
+  "description": "Salva i ruoli dei membri per server, aggiorna la copia ai cambiamenti e ripristina al rientro. Cog separato da Quarantena, con coordinamento AutoRole, Quarantena, ReactionRoles e NitroRole.",
+  "install_msg": "Carica con [p]load stickyroles e attiva con [p]sr attiva. Aggiorna e ricarica anche autorole, quarantena, reactionroles e nitrorole se li usi. Controlla [p]sr conflitti. Richiede Members Intent e Gestire ruoli.",
+  "end_user_data_statement": "Salva ID utente e server, ID ruoli, data di ingresso e aggiornamento, stato di presenza e ripristino ed eventuali errori API. I dati restano dopo l'uscita per consentire il ripristino. Supporta esportazione e cancellazione tramite Red. Nessun contenuto di messaggi o credenziali.",
+  "min_bot_version": "3.5.0",
+  "requirements": [],
+  "tags": ["roles", "stickyroles", "moderation", "autorole"],
+  "hidden": false,
+  "disabled": false
+}

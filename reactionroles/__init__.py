@@ -1,4 +1,4 @@
-from .reactionroles import ReactionRoles
+from .sticky_compat import ReactionRoles
 
 
 async def setup(bot):
