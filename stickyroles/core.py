@@ -141,7 +141,8 @@ class RoleMemory:
             if member is not None and data["known"] and data["joined"] != session(member):
                 return
             self.cancel((guild_id, user_id))
-            if member is not None and not data["pending"]:
+            # Never overwrite an updated role snapshot with a stale leave event.
+            if member is not None and not data["known"]:
                 data.update(known=True, roles=role_ids(member), joined=session(member), updated=time.time())
             if data["known"]:
                 data["present"] = False
