@@ -193,7 +193,14 @@ class Quarantena(commands.Cog):
         except (discord.NotFound, discord.Forbidden, discord.HTTPException):
             fresh = None
         if member.id not in saved or fresh is None or role not in fresh.roles:
-            return await ctx.send("Quarantena non completata: controlla i permessi e i log.")
+            problems = []
+            if member.id not in saved:
+                problems.append("ID non registrato")
+            if fresh is None:
+                problems.append("lettura membro Discord fallita")
+            elif role not in fresh.roles:
+                problems.append("ruolo quarantena assente sul membro")
+            return await ctx.send("Quarantena non completata: " + ", ".join(problems) + ". Verifica gerarchia e log.")
         await ctx.send(f"Utente {member.id} messo in quarantena. ID registrato.")
 
     @quarantena.command(name="libera", aliases=["release", "deisola"])
