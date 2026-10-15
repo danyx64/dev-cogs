@@ -184,6 +184,30 @@ class Tests(unittest.IsolatedAsyncioTestCase):
         await self.drain()
         self.assertEqual(self.guild.state[10][0], {1, 3})
         self.assertFalse((await self.saved())["pending"])
+    async def test_sticky_nickname_saved_and_restored_on_rejoin(self):
+        member = self.guild.member(roles=(1,))
+        member.nick = "Veterano"
+        await self.memory.snapshot(member)
+        data = await self.saved()
+        self.assertEqual(data["nick"], "Veterano")
+        self.assertTrue(data["nick_known"])
+        self.guild.state.pop(10)
+        await self.memory.left(1, 10, member)
+        joined = self.guild.member(roles=(), joined=NOW + timedelta(days=1))
+        async def fetch_member(user_id):
+            fresh = self.guild.get_member(user_id)
+            fresh.nick = None
+            fresh.top_role = self.guild.roles[1]
+            async def edit(*, nick, reason):
+                self.guild.restored_nick = nick
+            fresh.edit = edit
+            return fresh
+        self.guild.fetch_member = fetch_member
+        self.guild.me.guild_permissions.manage_nicknames = True
+        await self.memory.joined(joined)
+        await self.drain()
+        self.assertEqual(self.guild.restored_nick, "Veterano")
+        self.assertEqual(self.guild.state[10][0], {1})
     async def test_returnee_blocks_autorole_before_listener(self):
         member = await self.rejoin()
         self.assertTrue(await self.memory.should_skip_autorole(member))
