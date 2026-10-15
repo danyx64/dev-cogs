@@ -19,7 +19,7 @@ log = logging.getLogger("red.danyx64.stickyroles")
 class StickyRoles(commands.Cog):
     """Memorizza i ruoli dei membri e li ripristina al rientro."""
 
-    __version__ = "1.0.0"
+    __version__ = "1.0.1"
 
     def __init__(self, bot):
         self.bot = bot
@@ -132,14 +132,24 @@ class StickyRoles(commands.Cog):
             return await self._say(ctx, "Abilita Server Members Intent nel bot e nel Developer Portal.")
         if not ctx.guild.me.guild_permissions.manage_roles:
             return await self._say(ctx, "Al bot manca Gestire ruoli.")
+        was_enabled = await self._enabled(ctx.guild)
         await self.config.guild(ctx.guild).enabled.set(True)
         try:
-            saved, total = await self.seed(ctx.guild, resume=True)
-        except (discord.HTTPException, asyncio.TimeoutError):
-            return await self._say(ctx, "Attivo, ma la scansione non e completa. Riprova con `.sr salva`.")
-        await self._say(ctx, f"Sticky Roles attivo. Salvati {saved}/{total} membri; "
-                        "i ripristini gia in corso non sono sovrascritti. I nuovi utenti conservano AutoRole, "
-                        "chi rientra riceve i ruoli salvati. Verifica `.sr conflitti`.")
+            processed, total = await self.seed(ctx.guild, resume=True)
+        except (discord.HTTPException, asyncio.TimeoutError) as exc:
+            log.warning("Scansione Sticky Roles incompleta in %s: %s", ctx.guild.id, exc)
+            return await self._say(ctx, "Attivo, ma scansione incompleta. Riprova con `.sr salva`.")
+        saved_members = await self.config.all_members(ctx.guild)
+        known = sum(1 for d in saved_members.values() if d.get("known"))
+        pending = sum(1 for d in saved_members.values() if d.get("known") and d.get("pending"))
+        await self._say(
+            ctx,
+            f"Sticky Roles {'gia attivo: scansione aggiornata' if was_enabled else 'attivato'}.\n"
+            f"Membri presenti rilevati: {total} | Copie totali salvate: {known}\n"
+            f"Copie aggiornate in questa scansione: {processed} | Ripristini pendenti: {pending}.\n"
+            "Zero aggiornamenti alla seconda scansione e normale: le copie esistenti restano salvate. "
+            "Controlla `.sr stato` e `.sr conflitti`."
+        )
 
     @sr.command(name="disattiva", aliases=["off", "disable"])
     async def disable(self, ctx):
@@ -166,7 +176,12 @@ class StickyRoles(commands.Cog):
             saved, total = await self.seed(ctx.guild)
         except (discord.HTTPException, asyncio.TimeoutError):
             return await self._say(ctx, "Scansione incompleta: riprova. Le copie esistenti non sono cancellate.")
-        await self._say(ctx, f"Salvati {saved}/{total} membri. Copie degli utenti usciti conservate.")
+        records = await self.config.all_members(ctx.guild)
+        known = sum(1 for d in records.values() if d.get("known"))
+        await self._say(ctx, f"Scansione completata: {total} membri rilevati, "
+                        f"{saved} copie aggiornate, {known} copie totali memorizzate. "
+                        "Zero aggiornamenti non significa zero salvataggi. "
+                        "Le copie degli utenti usciti vengono conservate.")
 
     @sr.command(name="utente", aliases=["user"])
     async def user(self, ctx, user_id: int):
