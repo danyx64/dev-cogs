@@ -18,7 +18,7 @@ log = logging.getLogger("red.danyx64.stickyroles")
 class StickyRoles(commands.Cog):
     """Memorizza ruoli e nickname dei membri e li ripristina al rientro."""
 
-    __version__ = "1.1.0"
+    __version__ = "1.1.1"
 
     def __init__(self, bot):
         self.bot = bot
@@ -61,9 +61,10 @@ class StickyRoles(commands.Cog):
     async def seed(self, guild, *, resume=False):
         """Request the full member list, not just a potentially partial cache."""
         async with self._seed_locks.setdefault(guild.id, asyncio.Lock()):
-            await guild.chunk(cache=True)
+            # Fetch authoritative Member.nick values from the API instead of
+            # relying on a possibly stale Discord gateway member cache.
+            members = [member async for member in guild.fetch_members(limit=None)]
             saved = 0
-            members = list(guild.members)
             for member in members:
                 if not await self._enabled(guild):
                     break
