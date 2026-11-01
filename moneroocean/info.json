@@ -1,0 +1,19 @@
+{
+  "author": [
+    "danyx64"
+  ],
+  "description": "Monitors MoneroOcean pending XMR and sends customizable Discord embeds when new earnings are added.",
+  "short": "MoneroOcean pending XMR alerts",
+  "install_msg": "MoneroOcean installato. Usa [p]moneroocean helpme per configurare wallet, canale e embed.",
+  "requirements": [],
+  "tags": [
+    "monero",
+    "moneroocean",
+    "xmr",
+    "mining",
+    "alerts"
+  ],
+  "min_bot_version": "3.5.0",
+  "type": "COG",
+  "end_user_data_statement": "Memorizza solo wallet MoneroOcean, canale Discord e ultimo saldo pending rilevato."
+}
