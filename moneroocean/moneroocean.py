@@ -106,7 +106,7 @@ class MoneroOcean(commands.Cog):
 
         embed = discord.Embed(
             title=title or None,
-            description="\\n".join(lines) if layout == "list" else (custom_description or None),
+            description="\n".join(lines) if layout == "list" else (custom_description or None),
             color=self._color(cfg.get("color")),
             timestamp=detected_at if cfg.get("timestamp", True) else None,
         )
