@@ -183,6 +183,7 @@ class MoneroOcean(commands.Cog):
             f"`{p}moneroocean enable` / `{p}moneroocean disable`\n"
             f"`{p}moneroocean status` / `{p}moneroocean check`\n"
             f"`{p}moneroocean embed title|description|footer <testo>`\n"
+            f"`{p}moneroocean embed label total|new|time <testo>`\n"
             f"`{p}moneroocean embed color <hex>`\n"
             f"`{p}moneroocean embed reset` / `{p}moneroocean embed preview`\n"
             "Placeholder: `{total_xmr}`, `{new_xmr}`, `{time}`, `{date}`, `{wallet}`"
@@ -270,6 +271,35 @@ class MoneroOcean(commands.Cog):
     async def mo_embed_footer(self, ctx, *, value: str):
         await self._set_embed_value("footer", value)
         await ctx.send("Firma embed aggiornata.")
+
+    @mo_embed.command(name="label")
+    async def mo_embed_label(self, ctx, field: str, *, value: str):
+        labels = {
+            "total": "total_label",
+            "new": "new_label",
+            "time": "time_label",
+        }
+        field = field.lower()
+        if field not in labels:
+            return await ctx.send(
+                "Etichette disponibili: `total`, `new`, `time`. "
+                "Esempio: `moneroocean embed label new Nuovi guadagni`."
+            )
+        value = value.strip()
+        if not value:
+            return await ctx.send("Il testo dell'etichetta non può essere vuoto.")
+        await self._set_embed_value(labels[field], value)
+        await ctx.send(
+            f"Etichetta **{field}** aggiornata. "
+            f"Usa `{ctx.clean_prefix}moneroocean embed preview` per vedere il risultato."
+        )
+
+    @mo_embed.command(name="labelsreset")
+    async def mo_embed_labels_reset(self, ctx):
+        async with self.config.embed() as cfg:
+            for key in ("total_label", "new_label", "time_label"):
+                cfg[key] = DEFAULT_EMBED[key]
+        await ctx.send("Le tre etichette sono state ripristinate ai valori predefiniti.")
 
     @mo_embed.command(name="layout")
     async def mo_embed_layout(self, ctx, layout: str):
