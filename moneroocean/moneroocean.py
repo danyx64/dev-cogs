@@ -10,7 +10,7 @@ from redbot.core.bot import Red
 
 ATOMIC = Decimal("1000000000000")
 DEFAULT_EMBED = {
-    "title": "", "description": "", "footer": "", "color": "#F26822",
+    "title": "", "description": "", "footer": "", "color": "#F26822", "layout": "list",
     "show_total_pending": True, "show_new_pending": True, "show_detection_time": True,
     "total_label": "XMR totali pending",
     "new_label": "Nuovi XMR aggiunti al pending",
@@ -94,18 +94,29 @@ class MoneroOcean(commands.Cog):
                 result = result.replace("{" + key + "}", str(value))
             return result[:4096]
 
-        title, description, footer = (render(cfg.get(k)) for k in ("title", "description", "footer"))
+        title, custom_description, footer = (render(cfg.get(k)) for k in ("title", "description", "footer"))
+        layout = str(cfg.get("layout", "list")).lower()
+        lines = []
+        if cfg.get("show_total_pending", True):
+            lines.append(f'{render(cfg.get("total_label"))}: {values["total_xmr"]} XMR')
+        if cfg.get("show_new_pending", True):
+            lines.append(f'{render(cfg.get("new_label"))}: +{values["new_xmr"]} XMR')
+        if cfg.get("show_detection_time", True):
+            lines.append(f'{render(cfg.get("time_label"))}: {values["time"]}')
+
         embed = discord.Embed(
-            title=title or None, description=description or None,
+            title=title or None,
+            description="\\n".join(lines) if layout == "list" else (custom_description or None),
             color=self._color(cfg.get("color")),
             timestamp=detected_at if cfg.get("timestamp", True) else None,
         )
-        if cfg.get("show_total_pending", True):
-            embed.add_field(name=render(cfg.get("total_label")), value=f'{values["total_xmr"]} XMR', inline=False)
-        if cfg.get("show_new_pending", True):
-            embed.add_field(name=render(cfg.get("new_label")), value=f'+{values["new_xmr"]} XMR', inline=False)
-        if cfg.get("show_detection_time", True):
-            embed.add_field(name=render(cfg.get("time_label")), value=values["time"], inline=False)
+        if layout != "list":
+            if cfg.get("show_total_pending", True):
+                embed.add_field(name=render(cfg.get("total_label")), value=f'{values["total_xmr"]} XMR', inline=False)
+            if cfg.get("show_new_pending", True):
+                embed.add_field(name=render(cfg.get("new_label")), value=f'+{values["new_xmr"]} XMR', inline=False)
+            if cfg.get("show_detection_time", True):
+                embed.add_field(name=render(cfg.get("time_label")), value=values["time"], inline=False)
         if footer:
             embed.set_footer(text=footer[:2048])
         return embed
@@ -259,6 +270,14 @@ class MoneroOcean(commands.Cog):
     async def mo_embed_footer(self, ctx, *, value: str):
         await self._set_embed_value("footer", value)
         await ctx.send("Firma embed aggiornata.")
+
+    @mo_embed.command(name="layout")
+    async def mo_embed_layout(self, ctx, layout: str):
+        layout = layout.lower()
+        if layout not in ("list", "fields"):
+            return await ctx.send("Layout disponibili: `list` oppure `fields`.")
+        await self._set_embed_value("layout", layout)
+        await ctx.send(f"Layout embed impostato su **{layout}**. Usa `{ctx.clean_prefix}moneroocean embed preview` per vedere il risultato.")
 
     @mo_embed.command(name="color")
     async def mo_embed_color(self, ctx, value: str):
