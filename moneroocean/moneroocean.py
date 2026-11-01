@@ -69,7 +69,7 @@ class MoneroOcean(commands.Cog):
 
     @staticmethod
     def _amount(value):
-        return f"{value:.12f}".rstrip("0").rstrip(".") or "0"
+        return f"{value:.6f}".rstrip("0").rstrip(".") or "0"
 
     @staticmethod
     def _color(value):
